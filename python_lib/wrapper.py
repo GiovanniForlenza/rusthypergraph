@@ -1,0 +1,2 @@
+from hypergraphx import Hypergraph
+
