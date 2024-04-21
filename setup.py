@@ -2,7 +2,8 @@ from setuptools import find_packages, setup
 
 setup(
     name = 'rusthypergraph',
-    packages = find_packages(include=['wrapper']),
+    packages=find_packages(where='python_lib'),
+    package_dir={'': 'python_lib'},
     version = '0.1.1',
     description = '...',
     author = 'Giovanni',
