@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - master
+      - hoadmodel
     tags:
       - '*'
   pull_request:
