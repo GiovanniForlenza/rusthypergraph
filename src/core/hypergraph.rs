@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyTuple};
+use pyo3::types::{PyDict, PyList, PyTuple};
 use std::collections::{HashMap, HashSet};
 
 // Funzione per ottenere l'istanza di MetaHandler da Python
@@ -118,7 +118,7 @@ impl Hypergraph {
         }
 
         for node in &sorted_edge {
-            self.add_node(*node);
+            self.add_node(py, *node);
             self.adj.entry(*node).or_insert_with(HashSet::new).insert(idx);
         }
 
@@ -139,13 +139,35 @@ impl Hypergraph {
         Ok(())
     }
 
-    fn add_node(&mut self, node: usize) {
+    fn add_node(&mut self, py: Python, node: usize) {
         self.adj.entry(node).or_insert_with(HashSet::new);
+        let _ = self.attr.call_method(py, "add_obj", (node, "node"), None);
     }
 
+    fn add_nodes(&mut self, py:Python ,nodes: Vec<usize>) {
+        for node in nodes {
+            self.add_node(py, node);
+        }
+    }
 
-//     // pub fn add_node() -> PyResult<PyObject>{}
-//     // pub fn add_nodes() -> PyResult<PyObject>{}
+    pub fn get_nodes(&self, py: Python, metadata: bool) -> PyResult<PyObject> {
+        if !metadata {
+            let nodes: Vec<usize> = self.adj.keys().cloned().collect();
+            Ok(PyList::new(py, nodes).into())
+        } else {
+            let nodes_with_metadata: Vec<(usize, PyObject)> = self.adj.keys().map(|&node| {
+                let meta = self.get_meta(py, node).unwrap_or_else(|| PyDict::new(py).into());
+                (node, meta)
+            }).collect();
+            Ok(PyList::new(py, nodes_with_metadata).into())
+        }
+    }
+
+    fn get_meta(&self, py: Python, node: usize) -> Option<PyObject> {
+        let py_node = PyTuple::new(py, &[node]);
+        self.attr.call_method(py, "get_meta", (py_node,), None).ok()
+    }
+
 //     // pub fn check_edge() -> PyResult<PyObject>{}
 //     // pub fn check_node() -> PyResult<PyObject>{}
 //     // pub fn copy() -> PyResult<PyObject>{}
