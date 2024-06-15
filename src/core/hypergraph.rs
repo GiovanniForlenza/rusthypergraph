@@ -119,7 +119,7 @@ impl Hypergraph {
         Ok(())
     }
 
-    pub fn add_node(&mut self, py: Python, node: usize) {
+    pub fn add_node(&mut self, _py: Python, node: usize) {
         self.adj.entry(node).or_insert_with(HashSet::new);
         let mut metadata = HashMap::new();
         metadata.insert("Type".to_string(), "node".to_string());
@@ -255,6 +255,61 @@ impl Hypergraph {
         }
     }
 
+    pub fn is_weighted(&self) -> bool{
+        return  self.weighted;
+    }
+    
+    pub fn remove_edge(
+        &mut self,
+        _py: Python,
+        edge: Vec<usize>
+    ) -> PyResult<()> {
+        let mut sorted_edge = edge.clone();
+        sorted_edge.sort_unstable();
+        let edge_str = format!("{:?}", sorted_edge);
+
+        if let Some(edge_id) = self.attr.get_id_by_object(&edge_str) {
+            
+            self.edge_list.remove(&sorted_edge);
+            let order = sorted_edge.len() - 1;
+            
+            if let Some(order_edges) = self.edges_by_order.get_mut(&order) {
+                order_edges.remove(&sorted_edge);
+                if order_edges.is_empty() {
+                    self.edges_by_order.remove(&order);
+                }
+            }
+
+            for node in &sorted_edge {
+                if let Some(adj_edges) = self.adj.get_mut(node) {
+                    adj_edges.remove(&edge_id);
+                    if adj_edges.is_empty() {
+                        self.adj.remove(node);
+                    }
+                }
+            }
+
+            self.attr.remove_object(&edge_str);
+
+            Ok(())
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Edge not in hypergraph",
+            ))
+        }
+    }
+    
+    pub fn remove_edges(&mut self, _py: Python, edges: Vec<Vec<usize>>) -> PyResult<()>{
+        for edge in edges{
+            let _ = self.remove_edge(_py, edge);
+        }
+        Ok(())
+    }
+
+    // pub fn remove_node() -> PyResult<PyObject>{}
+    
+    // pub fn remove_nodes() -> PyResult<PyObject>{}
+    
 
     // pub fn check_edge() -> PyResult<PyObject>{}
     // pub fn check_node() -> PyResult<PyObject>{}
@@ -269,15 +324,10 @@ impl Hypergraph {
     // pub fn get_weight() -> PyResult<PyObject>{}
     // pub fn get_weights() -> PyResult<PyObject>{}
     // pub fn is_uniform() -> PyResult<PyObject>{}
-    // pub fn is_weighted() -> PyResult<PyObject>{}
     // pub fn max_order() -> PyResult<PyObject>{}
     // pub fn max_size() -> PyResult<PyObject>{}
     // pub fn num_edges() -> PyResult<PyObject>{}
     // pub fn num_nodes() -> PyResult<PyObject>{}
-    // pub fn remove_edge() -> PyResult<PyObject>{}
-    // pub fn remove_edges() -> PyResult<PyObject>{}
-    // pub fn remove_node() -> PyResult<PyObject>{}
-    // pub fn remove_nodes() -> PyResult<PyObject>{}
     // pub fn set_meta() -> PyResult<PyObject>{}
     // pub fn set_weight() -> PyResult<PyObject>{}
     // pub fn subhypergraph() -> PyResult<PyObject>{}
