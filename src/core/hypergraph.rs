@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use super::meta_handler::MetaHandler;
 
 #[pyclass]
+#[derive(Clone)]
 pub struct Hypergraph {
     attr: MetaHandler<String>,
     weighted: bool,
@@ -306,10 +307,120 @@ impl Hypergraph {
         Ok(())
     }
 
-    // pub fn remove_node() -> PyResult<PyObject>{}
+// da testare --- 
+    #[pyo3(signature = (node, keep_edges = None))]
+    pub fn remove_node(
+        &mut self,
+        _py: Python,
+        node: usize,
+        keep_edges: Option<bool>
+    ) -> PyResult<()> {
+        let keep_edges = keep_edges.unwrap_or(false);
+
+        if self.adj.contains_key(&node) {
+            let node_str = node.to_string();
+
+            if !keep_edges {
+                if let Some(edges) = self.adj.remove(&node) {
+                    for edge_id in edges {
+                        if let Some(edge_str) = self.attr.get_object_by_id(edge_id) {
+                            let edge: Vec<usize> = edge_str[1..edge_str.len() - 1]
+                                .split(", ")
+                                .filter_map(|s| s.parse().ok())
+                                .collect();
+                            self.remove_edge(_py, edge)?;
+                        }
+                    }
+                }
+            } else {
+                self.adj.remove(&node);
+            }
+
+            self.attr.remove_object(&node_str);
+            Ok(())
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Node not in hypergraph",
+            ))
+        }
+    }
+
+    #[pyo3(signature = (nodes, keep_edges = None))]
+    pub fn remove_nodes(
+        &mut self,
+        _py: Python,
+        nodes: Vec<usize>,
+        keep_edges: Option<bool>
+    ) -> PyResult<()> {
+        let keep_edges = keep_edges.unwrap_or(false);
+
+        for node in nodes {
+            self.remove_node(_py, node, Some(keep_edges))?;
+        }
+        Ok(())
+    }
     
-    // pub fn remove_nodes() -> PyResult<PyObject>{}
+    pub fn is_uniform(&self) -> bool {
+        return self.edges_by_order.len() == 1;
+    }
+
+
+    pub fn max_order(&self) -> usize{
+        return self.max_order;
+    }
+
+    pub fn max_size(&self) -> usize{
+        return self.max_order + 1;
+    }
+
+    // pub fn num_nodes(&self, py: Python) -> PyResult<usize> {
+    //     let nodes = self.get_nodes(py, false)?;
+    //     Ok(nodes.len())
+    // }
+    //restituisce il nimero di chiavi presenti in 'adj' che rappresenta il numero do nodi nell'ipergrafo
+    pub fn num_nodes(&self) -> usize {
+        self.adj.len()
+    }
     
+    #[pyo3(signature = (order = None, size = None, up_to = false))]
+    pub fn num_edges(
+        &self, 
+        _py: Python, 
+        order: Option<usize>, 
+        size: Option<usize>, 
+        up_to: bool
+    ) -> PyResult<usize> {
+        if order.is_some() && size.is_some() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Order and size cannot be both specified.",
+            ));
+        }
+
+        if order.is_none() && size.is_none() {
+            return Ok(self.edge_list.len());
+        } else {
+            let order = if let Some(size) = size {
+                size - 1
+            } else {
+                order.unwrap()
+            };
+
+            if !up_to {
+                match self.edges_by_order.get(&order) {
+                    Some(edges) => Ok(edges.len()),
+                    None => Ok(0),
+                }
+            } else {
+                let mut count = 0;
+                for i in 0..=order {
+                    if let Some(edges) = self.edges_by_order.get(&i) {
+                        count += edges.len();
+                    }
+                }
+                Ok(count)
+            }
+        }
+    }
 
     // pub fn check_edge() -> PyResult<PyObject>{}
     // pub fn check_node() -> PyResult<PyObject>{}
@@ -323,11 +434,6 @@ impl Hypergraph {
     // pub fn get_sizes() -> PyResult<PyObject>{}
     // pub fn get_weight() -> PyResult<PyObject>{}
     // pub fn get_weights() -> PyResult<PyObject>{}
-    // pub fn is_uniform() -> PyResult<PyObject>{}
-    // pub fn max_order() -> PyResult<PyObject>{}
-    // pub fn max_size() -> PyResult<PyObject>{}
-    // pub fn num_edges() -> PyResult<PyObject>{}
-    // pub fn num_nodes() -> PyResult<PyObject>{}
     // pub fn set_meta() -> PyResult<PyObject>{}
     // pub fn set_weight() -> PyResult<PyObject>{}
     // pub fn subhypergraph() -> PyResult<PyObject>{}
