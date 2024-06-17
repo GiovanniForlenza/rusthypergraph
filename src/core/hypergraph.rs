@@ -307,7 +307,6 @@ impl Hypergraph {
         Ok(())
     }
 
-// da testare --- 
     #[pyo3(signature = (node, keep_edges = None))]
     pub fn remove_node(
         &mut self,
@@ -364,11 +363,11 @@ impl Hypergraph {
         return self.edges_by_order.len() == 1;
     }
 
-
+//da rivedere
     pub fn max_order(&self) -> usize{
         return self.max_order;
     }
-
+//da rivedere
     pub fn max_size(&self) -> usize{
         return self.max_order + 1;
     }
@@ -378,6 +377,7 @@ impl Hypergraph {
     //     Ok(nodes.len())
     // }
     //restituisce il nimero di chiavi presenti in 'adj' che rappresenta il numero do nodi nell'ipergrafo
+    
     pub fn num_nodes(&self) -> usize {
         self.adj.len()
     }
@@ -422,9 +422,29 @@ impl Hypergraph {
         }
     }
 
-    // pub fn check_edge() -> PyResult<PyObject>{}
-    // pub fn check_node() -> PyResult<PyObject>{}
-    // pub fn copy() -> PyResult<PyObject>{}
+    pub fn check_edge(&self, edge: Vec<usize>) -> bool {
+        let mut sorted_edge = edge.clone();
+        sorted_edge.sort_unstable();
+        self.edge_list.contains_key(&sorted_edge)
+    }
+
+    pub fn check_node(&self, node: usize) -> bool {
+        self.adj.contains_key(&node)
+    }
+
+    pub fn copy(&self, _py: Python) -> PyResult<Hypergraph> {
+        let mut new_hypergraph = Hypergraph {
+            attr: self.attr.clone(),
+            weighted: self.weighted,
+            edges_by_order: self.edges_by_order.clone(),
+            adj: self.adj.clone(),
+            max_order: self.max_order,
+            edge_list: self.edge_list.clone(),
+        };
+
+        Ok(new_hypergraph)
+    }
+
     // pub fn distribution_sizes() -> PyResult<PyObject>{}
     // pub fn get_attr_meta() -> PyResult<PyObject>{}
     // pub fn get_incident_edges() -> PyResult<PyObject>{}
