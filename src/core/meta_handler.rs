@@ -85,4 +85,8 @@ where
         }
     }
 
+    pub fn set_attributes_by_id(&mut self, obj_id: usize, attr: HashMap<String, String>) {
+        self.attr.insert(obj_id, attr);
+    }
+
 }
