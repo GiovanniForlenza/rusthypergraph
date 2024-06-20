@@ -444,6 +444,22 @@ impl Hypergraph {
 
         Ok(new_hypergraph)
     }
+    
+    pub fn set_meta(
+        &mut self, 
+        _py: Python, 
+        obj_id: usize, 
+        metadata: HashMap<String, String>
+    ) -> PyResult<()> {
+        if let Some(_obj) = self.attr.get_object_by_id(obj_id) {
+            self.attr.set_attributes_by_id(obj_id, metadata);
+            Ok(())
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Object ID not found in hypergraph",
+            ))
+        }
+    }
 
     // pub fn distribution_sizes() -> PyResult<PyObject>{}
     // pub fn get_attr_meta() -> PyResult<PyObject>{}
@@ -454,7 +470,6 @@ impl Hypergraph {
     // pub fn get_sizes() -> PyResult<PyObject>{}
     // pub fn get_weight() -> PyResult<PyObject>{}
     // pub fn get_weights() -> PyResult<PyObject>{}
-    // pub fn set_meta() -> PyResult<PyObject>{}
     // pub fn set_weight() -> PyResult<PyObject>{}
     // pub fn subhypergraph() -> PyResult<PyObject>{}
     // pub fn subhypergraph_by_orders() -> PyResult<PyObject>{}
