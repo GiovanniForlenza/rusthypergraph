@@ -1,6 +1,0 @@
-mod core;
-
-
-fn main (){
-    
-}
