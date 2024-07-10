@@ -46,9 +46,12 @@ where
         self.id_2_obj.get(&idx).ok_or_else(|| format!("No object with id {}.", idx))
     }
 
-    pub fn set_attr(&mut self, obj: &T, attr: HashMap<String, String>) -> Result<(), String> {
-        let idx = self.get_id(obj)?;
-        self.attr.insert(idx, attr);
+    pub fn set_attr(&mut self, obj: &T, new_attr: HashMap<String, String>) -> Result<(), String> {
+        let id = self.get_id(obj)?;
+        let attributes = self.attr.entry(id).or_insert_with(HashMap::new);
+        for (key, value) in new_attr {
+            attributes.insert(key, value);
+        }
         Ok(())
     }
 
@@ -93,32 +96,6 @@ where
             self.attr.insert(obj_id, attr);
         }
     }
-
-    // pub fn add_attribute(&mut self, obj: &T, attr: String, value: String) {
-    //     if let Some(&obj_id) = self.get_id_by_object(obj) {
-    //         let entry = self.attr.entry(obj_id).or_insert_with(HashMap::new);
-    //         entry.insert(attr, value);
-    //     }
-    // }
-
-    // pub fn remove_attribute(&mut self, obj: &T, attribute: &str) -> Option<String> {
-    //     if let Some(&obj_id) = self.get_id_by_object(obj) {
-    //         if let Some(entry) = self.attr.get_mut(&obj_id) {
-    //             return entry.remove(attribute);
-    //         }
-    //     }
-    //     None
-    // }
-
-    // pub fn remove_object(&mut self, obj: &T) -> Option<(T, HashMap<String, String>)> {
-    //     if let Some(obj_id) = self.obj_2_id.remove(obj) {
-    //         self.id_2_obj.remove(&obj_id);
-    //         let attributes = self.attr.remove(&obj_id);
-    //         Some((obj.clone(), attributes.unwrap_or_else(HashMap::new)))
-    //     } else {
-    //         None
-    //     }
-    // }
 
     pub fn set_attributes_by_id(&mut self, obj_id: usize, attr: HashMap<String, String>) {
         self.attr.insert(obj_id, attr);
