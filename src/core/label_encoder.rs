@@ -1,5 +1,4 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyDict};
 use std::collections::HashMap;
 
 #[pyclass]
@@ -17,7 +16,9 @@ impl LabelEncoder {
     }
 
     pub fn fit(&mut self, nodes: Vec<usize>) {
-        for (i, node) in nodes.iter().enumerate() {
+        let mut node_sort = nodes.clone();
+        node_sort.sort();
+        for (i, node) in node_sort.iter().enumerate() {
             self.mapping.insert(*node, i);
         }
     }
