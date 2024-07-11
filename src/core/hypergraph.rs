@@ -138,7 +138,7 @@ impl Hypergraph {
         Ok(())
     }
 
-    pub fn add_node(&mut self, py: Python, node: usize) -> PyResult<()> {
+    pub fn add_node(&mut self, _py: Python, node: usize) -> PyResult<()> {
         if !self.adj.contains_key(&node) {
             self.adj.insert(node, HashSet::new());
             let mut attributes = HashMap::new();
@@ -832,7 +832,7 @@ impl Hypergraph {
 
             for (node, meta_py) in nodes_with_metadata {
                 let meta: HashMap<String, String> = meta_py.extract(py)?;
-                subgraph.add_node(py, node);
+                let _ = subgraph.add_node(py, node);
                 let _ = subgraph.set_meta(py, node, meta);
                 // match subgraph.set_meta(py, node, meta) {
                 //     Ok(_) => println!("Successfully set metadata for node {}", node),
