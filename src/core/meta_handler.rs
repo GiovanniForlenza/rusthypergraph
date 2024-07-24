@@ -42,9 +42,9 @@ where
         self.obj_2_id.get(obj).cloned().ok_or_else(|| format!("No object {}.", obj))
     }
 
-    pub fn get_obj(&self, idx: usize) -> Result<&T, String> {
-        self.id_2_obj.get(&idx).ok_or_else(|| format!("No object with id {}.", idx))
-    }
+    // pub fn get_obj(&self, idx: usize) -> Result<&T, String> {
+    //     self.id_2_obj.get(&idx).ok_or_else(|| format!("No object with id {}.", idx))
+    // }
 
     pub fn set_attr(&mut self, obj: &T, new_attr: HashMap<String, String>) -> Result<(), String> {
         let id = self.get_id(obj)?;
@@ -61,7 +61,6 @@ where
     }
 
     pub fn add_object(&mut self, obj: T, attributes: Option<HashMap<String, String>>) -> usize {
-        // Controlla se l'oggetto è già presente
         if let Some(&existing_id) = self.obj_2_id.get(&obj) {
             return existing_id;
         }
@@ -91,30 +90,8 @@ where
         self.attr.get(&obj_id)
     }
 
-    pub fn set_attributes(&mut self, obj: &T, attr: HashMap<String, String>) {
-        if let Some(&obj_id) = self.get_id_by_object(obj) {
-            self.attr.insert(obj_id, attr);
-        }
-    }
-
     pub fn set_attributes_by_id(&mut self, obj_id: usize, attr: HashMap<String, String>) {
         self.attr.insert(obj_id, attr);
-    }
-
-    pub fn add_attribute(&mut self, obj: &T, attr: String, value: String) -> Result<(), String> {
-        let idx = self.get_id(obj)?;
-        if let Some(attributes) = self.attr.get_mut(&idx) {
-            attributes.insert(attr, value);
-        }
-        Ok(())
-    }
-
-    pub fn remove_attribute(&mut self, obj: &T, attr: &str) -> Result<(), String> {
-        let idx = self.get_id(obj)?;
-        if let Some(attributes) = self.attr.get_mut(&idx) {
-            attributes.remove(attr);
-        }
-        Ok(())
     }
 
     pub fn remove_object(&mut self, obj: &T) -> Result<(), String> {
