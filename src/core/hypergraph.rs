@@ -335,21 +335,14 @@ impl Hypergraph {
         }
     }
 
-    // #[pyo3(signature = (metadata = false))]
-    pub fn get_edges_metadata(&self, metadata: bool) -> Vec<(Vec<usize>, HashMap<String, String>)> {
-        if metadata {
-            self.edge_list.iter()
-                .map(|(edge, _)| {
-                    let edge_str = format!("{:?}", edge);
-                    let edge_meta = self.attr.get_attr(&edge_str).unwrap_or(&HashMap::new()).clone();
-                    (edge.clone(), edge_meta)
-                })
-                .collect()
-        } else {
-            self.edge_list.keys()
-                .map(|edge| (edge.clone(), HashMap::new()))
-                .collect()
-        }
+    pub fn get_edges_metadata(&self) -> Vec<(Vec<usize>, HashMap<String, String>)> {
+        self.edge_list.iter()
+            .map(|(edge, _)| {
+                let edge_str = format!("{:?}", edge);
+                let edge_meta = self.attr.get_attr(&edge_str).unwrap_or(&HashMap::new()).clone();
+                (edge.clone(), edge_meta)
+            })
+            .collect()
     }
 
     pub fn is_weighted(&self) -> bool{
@@ -894,14 +887,13 @@ impl Hypergraph {
     }
     
     fn __str__(&self, py: Python) -> PyResult<String> {
-        let nodes_py = self.get_nodes(py, false)?;
-    
-        let nodes_count = nodes_py.as_ref(py).len()?;
-    
+            
         let dist_sizes_py = self.distribution_sizes(py)?;
         let dist_sizes_str = dist_sizes_py.to_string();
+
+        let edge = self.edge_list.len();
     
-        let title = format!("Hypergraph with {} nodes and {} edges.\n", self.num_nodes(), nodes_count);
+        let title = format!("Hypergraph with {} nodes and {} edges.\n", self.num_nodes(), edge);
         let details = format!("Distribution of hyperedge sizes: {}", dist_sizes_str);
     
         Ok(format!("{}{}", title, details))
