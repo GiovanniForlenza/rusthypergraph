@@ -46,7 +46,7 @@ As the library is not yet available on PyPI, the steps to install and use it are
 
 6. To compile the Rust extension for the Python project:
     ```
-    maturin develop
+    maturin develop --release
     ```
 
 7. To install the library in the virtual environment, simply execute:
