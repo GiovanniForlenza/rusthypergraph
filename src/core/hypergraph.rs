@@ -72,58 +72,51 @@ impl Hypergraph {
     pub fn add_edge(
         &mut self,
         py: Python,
-        mut edge: Vec<usize>,
+        edge: Vec<usize>,
         weight: Option<f64>,
         metadata: Option<HashMap<String, String>>,
     ) -> PyResult<()> {
         match (self.weighted, weight) {
-            (true, None) => {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    "If the hypergraph is weighted, a weight must be provided.",
-                ))
-            }
-            (false, Some(_)) => {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    "If the hypergraph is not weighted, no weight must be provided.",
-                ))
-            }
+            (true, None) => return Err(pyo3::exceptions::PyValueError::new_err(
+                "If the hypergraph is weighted, a weight must be provided."
+            )),
+            (false, Some(_)) => return Err(pyo3::exceptions::PyValueError::new_err(
+                "If the hypergraph is not weighted, no weight must be provided."
+            )),
             _ => {}
         }
-
-        edge.sort_unstable();
-
-        let edge_str = format!("{:?}", edge);
-
-        let edge_idx = self
-            .attr
-            .add_obj(edge_str.clone(), Some("edge".to_string()));
-
+    
+        let mut sorted_edge = edge;
+        sorted_edge.sort_unstable();
+        let edge_str = format!("{:?}", sorted_edge);
+    
+        let edge_idx = self.attr.add_obj(edge_str.clone(), Some("edge".to_string()));
         if let Some(metadata) = metadata {
-            self.attr.set_attr(&edge_str, metadata).unwrap();
+            let _ = self.attr.set_attr(&edge_str, metadata);
         }
-        let order = edge.len().saturating_sub(1);
-
-        if order > self.max_order {
-            self.max_order = order;
-        }
-
+    
+        let order = sorted_edge.len() - 1;
+        self.max_order = self.max_order.max(order);
+    
         self.edges_by_order
             .entry(order)
-            .or_default()
-            .insert(edge.clone());
-
-        let edge_weight = weight.unwrap_or(1.0);
+            .or_insert_with(HashSet::new)
+            .insert(sorted_edge.clone());
+    
         if self.weighted {
-            self.edge_list.insert(edge.clone(), edge_weight);
+            self.edge_list.insert(sorted_edge.clone(), weight.unwrap_or(1.0));
         } else {
-            *self.edge_list.entry(edge.clone()).or_insert(1.0) += 1.0;
+            *self.edge_list.entry(sorted_edge.clone()).or_insert(1.0) += 1.0;
         }
-
-        for &node in &edge {
+    
+        for &node in &sorted_edge {
             self.add_node(py, node)?;
-            self.adj.entry(node).or_default().insert(edge_idx);
+            self.adj
+                .entry(node)
+                .or_insert_with(HashSet::new)
+                .insert(edge_idx);
         }
-
+    
         Ok(())
     }
 
@@ -192,35 +185,6 @@ impl Hypergraph {
         }
     }
 
-    // pub fn get_nodes(&self, py: Python, metadata: bool) -> PyResult<PyObject> {
-    //     if !metadata {
-    //         let nodes: Vec<usize> = self.adj.keys().cloned().collect();
-    //         Ok(PyList::new(py, nodes).into())
-    //     } else {
-    //         let nodes_with_metadata: Vec<(usize, PyObject)> = self
-    //             .adj
-    //             .keys()
-    //             .filter_map(|&node| {
-    //                 if let Some(attributes) = self.attr.get_attributes(node) {
-    //                     // Verifica se il tipo è "node"
-    //                     if attributes.get("type") == Some(&"node".to_string()) {
-    //                         let py_dict = PyDict::new(py);
-    //                         for (key, value) in attributes {
-    //                             py_dict.set_item(key, value).unwrap();
-    //                         }
-    //                         Some((node, py_dict.into()))
-    //                     } else {
-    //                         None
-    //                     }
-    //                 } else {
-    //                     None
-    //                 }
-    //             })
-    //             .collect();
-    //         Ok(PyList::new(py, nodes_with_metadata).into())
-    //     }
-    // }
-
     pub fn get_nodes(&self, py: Python, metadata: bool) -> PyResult<PyObject> {
         if !metadata {
             let nodes: Vec<usize> = self.adj.keys().cloned().collect();
@@ -244,7 +208,7 @@ impl Hypergraph {
 
     pub fn get_meta(&self, py: Python, obj_id: usize) -> Option<PyObject> {
         if let Some(attributes) = self.attr.get_attributes(obj_id) {
-            let py_dict = PyDict::new(py);
+            let py_dict = PyDict::new_bound(py);
             for (key, value) in attributes {
                 py_dict.set_item(key, value).unwrap();
             }
@@ -255,23 +219,20 @@ impl Hypergraph {
         }
     }
 
-
-    // ids (bool): Se True, restituisce gli ID degli edge anziché gli oggetti edge stessi.
-    // order (Option<usize>): Specifica l'ordine degli edge da restituire. L'ordine di un edge è determinato dal numero di nodi meno uno.
-    // size (Option<usize>): Specifica la dimensione degli edge da restituire. La dimensione di un edge è il numero di nodi che contiene.
-    // up_to (bool): Se True, restituisce tutti gli edge fino all'ordine (o dimensione) specificato, anziché solo quelli dell'ordine specificato.
-    // subhypergraph (bool): Se True, restituisce un nuovo subhypergraph contenente gli edge selezionati, anziché una lista di edge.
-    // keep_isolated_nodes (bool): Se True e subhypergraph è True, include anche i nodi isolati (nodi senza edge) nel subhypergraph risultante.
-
- 
-    // ids (bool): Se True, restituisce gli ID degli edge anziché gli oggetti edge stessi.
-    // order (Option<usize>): Specifica l'ordine degli edge da restituire. L'ordine di un edge è determinato dal numero di nodi meno uno.
-    // size (Option<usize>): Specifica la dimensione degli edge da restituire. La dimensione di un edge è il numero di nodi che contiene.
-    // up_to (bool): Se True, restituisce tutti gli edge fino all'ordine (o dimensione) specificato, anziché solo quelli dell'ordine specificato.
-    // subhypergraph (bool): Se True, restituisce un nuovo subhypergraph contenente gli edge selezionati, anziché una lista di edge.
-    // keep_isolated_nodes (bool): Se True e subhypergraph è True, include anche i nodi isolati (nodi senza edge) nel subhypergraph risultante.
-
+    
     #[pyo3(signature = (ids = false, order = None, size = None, up_to = false, subhypergraph = false, keep_isolated_nodes = false))]
+    /// Restituisce gli edge del hypergrafo, con opzioni per filtrarli e restituire un subhypergraph
+    ///
+    /// # Parametri
+    /// - `ids`: Se vero, restituisce gli ID degli edge invece dei loro contenuti.
+    /// - `order`: Specifica l'ordine degli edge da restituire. Non può essere usato con `size`.
+    /// - `size`: Specifica la dimensione degli edge da restituire. Non può essere usato con `order`.
+    /// - `up_to`: Se vero, restituisce tutti gli edge fino all'ordine o dimensione specificati.
+    /// - `subhypergraph`: Se vero, restituisce un sotto-grafo iper. Non può essere usato con `ids`.
+    /// - `keep_isolated_nodes`: Se vero, mantiene i nodi isolati nel sotto-grafo iper.
+    ///
+    /// # Errori
+    /// Restituisce un errore se `order` e `size` sono entrambi specificati, se `ids` e `subhypergraph` sono entrambi veri, o se `keep_isolated_nodes` è vero senza `subhypergraph`.
     pub fn get_edges(
         &self,
         py: Python,
@@ -282,9 +243,10 @@ impl Hypergraph {
         subhypergraph: bool,
         keep_isolated_nodes: bool,
     ) -> PyResult<PyObject> {
+        // Controllo di validità degli argomenti
         if order.is_some() && size.is_some() {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Order and size cannot be both specified.",
+                "Order and size cannot both be specified.",
             ));
         }
         if ids && subhypergraph {
@@ -297,31 +259,37 @@ impl Hypergraph {
                 "Cannot keep nodes if not returning subhypergraphs.",
             ));
         }
-
+    
         let mut edges: Vec<PyObject> = Vec::new();
-
+    
+        // Se non sono specificati né `order` né `size`
         if order.is_none() && size.is_none() {
-            if !ids {
+            if ids {
+                // Recuperiamo gli ID degli edge
                 for edge in self.edge_list.keys() {
-                    edges.push(PyTuple::new(py, edge).into());
-                }
-            } else {
-                for edge in self.edge_list.keys() {
-                    if let Some(edge_id) = self.attr.get_id_by_object(&PyTuple::new(py, edge).to_string()) {
+                    let edge_str = format!("{:?}", edge);
+                    if let Some(edge_id) = self.attr.get_id_by_object(&edge_str) {  
                         edges.push(edge_id.into_py(py));
                     }
                 }
+            } else {
+                // Restituiamo gli edge come tuple Python
+                for edge in self.edge_list.keys() {
+                    let py_tuple = PyTuple::new_bound(py, edge);
+                    edges.push(py_tuple.into_py(py));
+                }
             }
         } else {
+            // Recuperiamo gli edge temporanei in base a `order` o `size`
             let mut edges_tmp: Vec<Vec<usize>> = Vec::new();
             if let Some(s) = size {
-                let o = s - 1;
+                let max_order = s - 1;
                 if !up_to {
-                    if let Some(order_edges) = self.edges_by_order.get(&o) {
+                    if let Some(order_edges) = self.edges_by_order.get(&max_order) {
                         edges_tmp.extend(order_edges.iter().cloned());
                     }
                 } else {
-                    for i in 0..=o {
+                    for i in 0..=max_order {
                         if let Some(order_edges) = self.edges_by_order.get(&i) {
                             edges_tmp.extend(order_edges.iter().cloned());
                         }
@@ -340,20 +308,24 @@ impl Hypergraph {
                     }
                 }
             }
-
+    
+            // Conversione degli edge in PyObject
             if ids {
                 for edge in edges_tmp {
-                    if let Some(edge_id) = self.attr.get_id_by_object(&PyTuple::new(py, edge).to_string()) {
+                    let edge_str = format!("{:?}", edge);
+                    if let Some(edge_id) = self.attr.get_id_by_object(&edge_str) {
                         edges.push(edge_id.into_py(py));
                     }
                 }
             } else {
                 for edge in edges_tmp {
-                    edges.push(PyList::new(py, edge).into());
+                    let py_tuple = PyTuple::new_bound(py, &edge);
+                    edges.push(py_tuple.into_py(py));
                 }
             }
         }
-
+    
+        // Se `subhypergraph` è richiesto
         if subhypergraph {
             let mut subgraph = Hypergraph {
                 attr: self.attr.clone(),
@@ -363,45 +335,45 @@ impl Hypergraph {
                 max_order: 0,
                 edge_list: HashMap::new(),
             };
-
-            if self.weighted {
-                for edge in &edges {
-                    if let Ok(edge_list) = edge.extract::<Vec<usize>>(py) {
+    
+            for edge in &edges {
+                if let Ok(edge_list) = edge.extract::<Vec<usize>>(py) {
+                    if self.weighted {
                         if let Some(weight) = self.edge_list.get(&edge_list) {
                             subgraph.add_edge(py, edge_list.clone(), Some(*weight), None)?;
                         }
-                    }
-                }
-            } else {
-                for edge in &edges {
-                    if let Ok(edge_list) = edge.extract::<Vec<usize>>(py) {
+                    } else {
                         subgraph.add_edge(py, edge_list.clone(), None, None)?;
                     }
                 }
             }
-
-            for edge in subgraph.get_edges(py, false, None, None, false, false, false)?.extract::<Vec<Vec<usize>>>(py)? {
-                if let Some(edge_id) = self.attr.get_id_by_object(&format!("{:?}", edge)) {
+    
+            // Aggiunta dei metadati agli edge del subhypergraph
+            for edge in subgraph.get_edges(py, false, None, None, false, false, false)?
+                .extract::<Vec<Vec<usize>>>(py)? {
+                let edge_str = format!("{:?}", edge);
+                if let Some(edge_id) = self.attr.get_id_by_object(&edge_str) {
                     if let Some(meta) = self.attr.get_attributes(*edge_id) {
-                        let meta_dict = PyDict::new(py);
+                        let meta_dict = PyDict::new_bound(py);
                         for (key, value) in meta {
                             meta_dict.set_item(key, value)?;
                         }
-                        let _ = subgraph.set_meta(py, *edge_id, meta.clone());
+                        subgraph.set_meta(py, *edge_id, meta.clone())?;
                     }
                 }
             }
-
+    
+            // Mantenere i nodi isolati se richiesto
             if keep_isolated_nodes {
                 for node in self.adj.keys() {
-                    let _ = subgraph.add_node(py, *node);
+                    subgraph.add_node(py, *node)?;
                 }
             }
-
-            Ok(Py::new(py, subgraph)?.into_py(py))
-        } else {
-            Ok(PyList::new(py, edges).into())
+    
+            return Ok(Py::new(py, subgraph)?.into_py(py));
         }
+        let py_list = PyList::new_bound(py, &edges);
+        Ok(py_list.into())
     }
 
     pub fn get_edges_metadata(&self) -> Vec<(Vec<usize>, HashMap<String, String>)> {
@@ -473,10 +445,8 @@ impl Hypergraph {
     //     keep_edges: Option<bool>
     // ) -> PyResult<()> {
     //     let keep_edges = keep_edges.unwrap_or(false);
-
     //     if self.adj.contains_key(&node) {
     //         let node_str = node.to_string();
-
     //         if !keep_edges {
     //             if let Some(edges) = self.adj.remove(&node) {
     //                 for edge_id in edges {
@@ -492,7 +462,6 @@ impl Hypergraph {
     //         } else {
     //             self.adj.remove(&node);
     //         }
-
     //         let _ = self.attr.remove_object(&node_str);
     //         Ok(())
     //     } else {
@@ -645,7 +614,7 @@ impl Hypergraph {
 
     pub fn get_sizes(&self, py: Python) -> PyResult<PyObject> {
         let sizes: Vec<usize> = self.edge_list.keys().map(|edge| edge.len()).collect();
-        Ok(PyList::new(py, sizes).into())
+        Ok(PyList::new_bound(py, sizes).into()) 
     }
 
     pub fn distribution_sizes(&self, py: Python) -> PyResult<PyObject> {
@@ -656,7 +625,7 @@ impl Hypergraph {
             *size_distribution.entry(size).or_insert(0) += 1;
         }
 
-        let py_dict = PyDict::new(py);
+        let py_dict = PyDict::new_bound(py);
         for (size, count) in size_distribution {
             py_dict.set_item(size, count)?;
         }
@@ -666,7 +635,7 @@ impl Hypergraph {
 
     pub fn get_orders(&self, py: Python) -> PyResult<PyObject> {
         let orders: Vec<usize> = self.edge_list.keys().map(|edge| edge.len() - 1).collect();
-        Ok(PyList::new(py, orders).into())
+        Ok(PyList::new_bound(py, orders).into())
     }
 
     pub fn get_attr_meta(&self, py: Python, obj: usize, attr: String) -> PyResult<PyObject> {
@@ -687,6 +656,7 @@ impl Hypergraph {
         }
     }
 
+    #[pyo3(signature = (node, order=None, size=None))]
     fn get_incident_edges(
         &self,
         py: Python,
@@ -737,8 +707,8 @@ impl Hypergraph {
                     .collect()
             })
         };
-
-        Ok(PyList::new(py, incident_edges).into())
+        let pylist = PyList::new_bound(py, incident_edges).into();
+        Ok(pylist)
     }
 
     pub fn get_weight(&self, _py: Python, edge: Vec<usize>) -> PyResult<f64> {
@@ -769,6 +739,7 @@ impl Hypergraph {
         }
     }
 
+    #[pyo3(signature = (node, order = None, size = None))]
     pub fn get_neighbors(
         &self,
         py: Python,
@@ -778,17 +749,18 @@ impl Hypergraph {
     ) -> PyResult<PyObject> {
         if order.is_some() && size.is_some() {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Order and size cannot be both specified.",
+                "Order and size cannot both be specified.",
             ));
         }
 
-        let mut neighbors = HashSet::new();
+        let mut neighbors: HashSet<usize> = HashSet::new();
 
         let edges_py = self.get_incident_edges(py, node, order, size)?;
-        let edges: &PyAny = edges_py.as_ref(py);
+        let edges: Vec<Vec<usize>> = edges_py
+            .extract(py)?;  // Converte l'intera lista di edge da Python a Rust 
 
-        for edge in edges.iter()? {
-            let edge_vec: Vec<usize> = edge?.extract()?;
+        // Itera sugli edge in Rust
+        for edge_vec in edges {
             for &neighbor in &edge_vec {
                 if neighbor != node {
                     neighbors.insert(neighbor);
@@ -796,11 +768,11 @@ impl Hypergraph {
             }
         }
 
-        let py_neighbors = PyList::new(py, neighbors).into();
+        let py_neighbors = PyList::new_bound(py, neighbors.into_iter().collect::<Vec<_>>());
 
-        Ok(py_neighbors)
+        Ok(py_neighbors.into())
     }
-
+    
     #[pyo3(signature = (order = None, size = None, up_to = false))]
     pub fn get_weights(
         &self,
@@ -928,12 +900,12 @@ impl Hypergraph {
     ) -> PyResult<Self> {
         if orders.is_none() && sizes.is_none() {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Almeno uno tra orders e sizes deve essere specificato",
+                "At least one of orders or sizes must be specified",
             ));
         }
         if orders.is_some() && sizes.is_some() {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Order e size non possono essere entrambi specificati.",
+                "Orders and sizes cannot both be specified.",
             ));
         }
 
@@ -946,62 +918,67 @@ impl Hypergraph {
             edge_list: HashMap::new(),
         };
 
-        if keep_nodes {
+        // Store nodes as Rust types directly
+        let nodes: Vec<(usize, HashMap<String, String>)> = if keep_nodes {
             let nodes_py = self.get_nodes(py, true)?;
             let nodes_with_metadata: Vec<(usize, PyObject)> = nodes_py.extract(py)?;
 
-            for (node, meta_py) in nodes_with_metadata {
-                let meta: HashMap<String, String> = meta_py.extract(py)?;
-                let _ = subgraph.add_node(py, node);
-                let _ = subgraph.set_meta(py, node, meta);
-                // match subgraph.set_meta(py, node, meta) {
-                //     Ok(_) => println!("Successfully set metadata for node {}", node),
-                //     Err(e) => println!("Failed to set metadata for node {}: {:?}", node, e),
-                // }
-            }
-        }
-
-        let sizes = if let Some(sizes) = sizes {
-            sizes
+            nodes_with_metadata
+                .into_iter()
+                .map(|(node, meta_py)| {
+                    let meta: HashMap<String, String> = meta_py.extract(py).unwrap();
+                    (node, meta)
+                })
+                .collect()
         } else {
-            orders.unwrap().into_iter().map(|order| order + 1).collect()
+            Vec::new()
         };
 
+        // Add nodes to the subgraph
+        for (node, meta) in nodes {
+            subgraph.add_node(py, node)?;
+            subgraph.set_meta(py, node, meta)?;
+        }
+
+        let sizes = sizes.unwrap_or_else(|| orders.unwrap().iter().map(|&order| order + 1).collect());
+
+        // Process edges
         for size in sizes {
-            let edges_py = self.get_edges(py, false, None, Some(size), false, false, false)?;
-            let edges: &PyList = edges_py.as_ref(py).downcast::<PyList>()?;
+            let edges_py: PyObject = self.get_edges(py, false, None, Some(size), false, false, false)?;
+
+            // Effettua il downcast a PyList
+            let edges = edges_py.downcast_bound::<PyList>(py).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!("Errore nel downcast: {:?}", e))
+            })?;
+
 
             for edge_py in edges.iter() {
                 let edge_list: Vec<usize> = edge_py.extract()?;
-
-                if subgraph.weighted {
-                    let weight = self.get_weight(py, edge_list.clone())?;
-                    let meta_py = self.get_meta(py, edge_list[0]);
-                    if let Some(meta_py) = meta_py {
-                        let meta: HashMap<String, String> = meta_py.extract(py)?;
-                        subgraph.add_edge(py, edge_list.clone(), Some(weight), Some(meta))?;
-                    } else {
-                        subgraph.add_edge(py, edge_list.clone(), Some(weight), None)?;
-                    }
+                let weight = if subgraph.weighted {
+                    Some(self.get_weight(py, edge_list.clone())?)
                 } else {
-                    let meta_py = self.get_meta(py, edge_list[0]);
-                    if let Some(meta_py) = meta_py {
-                        let meta: HashMap<String, String> = meta_py.extract(py)?;
-                        subgraph.add_edge(py, edge_list.clone(), None, Some(meta))?;
-                    } else {
-                        subgraph.add_edge(py, edge_list.clone(), None, None)?;
-                    }
-                }
+                    None
+                };
+
+                // Get metadata only once
+                let meta_py = self.get_meta(py, edge_list[0]);
+                let meta = meta_py.map(|m| m.extract::<HashMap<String, String>>(py)).transpose()?;
+
+                // Add edge with weight and metadata
+                subgraph.add_edge(py, edge_list.clone(), weight, meta)?;
             }
         }
 
+        // Convert the subgraph back to Python types if needed
         Ok(subgraph)
     }
 
     fn get_mapping(&self, py: Python) -> PyResult<LabelEncoder> {
-        let nodes_py = self.get_nodes(py, false)?;
-        let nodes_list: &PyList = nodes_py.as_ref(py).downcast::<PyList>()?;
-
+        let nodes_py: PyObject = self.get_nodes(py, false)?;
+        let nodes_list = nodes_py.downcast_bound::<PyList>(py).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!("Errore nel downcast: {:?}", e))
+        })?;
+        
         let mut nodes: Vec<usize> = Vec::new();
         for node in nodes_list.iter() {
             nodes.push(node.extract::<usize>()?);
