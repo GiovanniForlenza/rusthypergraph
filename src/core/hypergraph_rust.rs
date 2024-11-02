@@ -1,13 +1,20 @@
 use super::meta_handler::MetaHandler;
 use std::collections::{HashMap, HashSet};
 
+/// A hypergraph data structure.
 #[derive(Clone)]
 pub struct HypergraphRust {
+    /// Metadata handler for storing attributes associated with nodes and edges.
     attr: MetaHandler<String>,
+    /// Indicates whether the hypergraph is weighted.
     weighted: bool,
+    /// Stores edges organized by their order.
     edges_by_order: HashMap<usize, HashSet<Vec<usize>>>,
+    /// Adjacency list representation of the hypergraph.
     adj: HashMap<usize, HashSet<usize>>,
+    /// Maximum order of the hypergraph.
     max_order: usize,
+    /// List of edges with their associated weights.
     edge_list: HashMap<Vec<usize>, f64>,
 }
 
@@ -49,6 +56,18 @@ impl HypergraphRust {
         hypergraph
     }
 
+    /// Adds a new edge to the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `edge`: The edge to be added.
+    /// * `weight`: The weight of the edge. If the hypergraph is not weighted, this argument is ignored.
+    /// * `metadata`: Additional metadata associated with the edge. The metadata can be used to store extra information about the edge.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the edge was added successfully.
+    /// * `Err(String)` if the edge could not be added. This can happen if the hypergraph is weighted and no weight is provided, or if the hypergraph is not weighted and a weight is provided.
     pub fn add_edge(
         &mut self,
         edge: Vec<usize>,
@@ -95,6 +114,18 @@ impl HypergraphRust {
         Ok(())
     }
 
+    /// Adds multiple edges to the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `edges`: The edges to be added.
+    /// * `weights`: The weights of the edges. If the hypergraph is not weighted, this argument is ignored.
+    /// * `metadata`: Additional metadata associated with the edges. The metadata can be used to store extra information about the edges.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the edges were added successfully.
+    /// * `Err(String)` if the edges could not be added. This can happen if the hypergraph is weighted and no weights are provided, or if the hypergraph is not weighted and weights are provided.
     pub fn add_edges(
         &mut self,
         edges: Vec<Vec<usize>>,
@@ -140,14 +171,36 @@ impl HypergraphRust {
         Ok(())
     }
 
+    /// Verifica se un arco esiste nel grafo.
+    ///
+    /// # Argumenti
+    ///
+    /// * `edge`: L'arco da verificare.
+    ///
+    /// # Returns
+    ///
+    /// * `true` se l'arco esiste.
+    /// * `false` altrimenti.
     fn edge_exists(&self, edge: &Vec<usize>) -> bool {
         let mut sorted_edge = edge.clone();
         sorted_edge.sort_unstable();
-        // println!("Checking edge existence: {:?}", sorted_edge);
+        
         self.edge_list.contains_key(&sorted_edge)
     }
 
-    fn update_edge(
+    /// Updates an existing edge in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `edge`: The edge to be updated.
+    /// * `weight`: An optional new weight for the edge.
+    /// * `metadata`: An optional new metadata map for the edge.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the edge was updated successfully.
+    /// * `Err(String)` if the edge does not exist in the hypergraph.
+    pub fn update_edge(
         &mut self,
         edge: Vec<usize>,
         weight: Option<f64>,
@@ -176,6 +229,16 @@ impl HypergraphRust {
         }
     }
 
+    /// Adds a node to the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `node`: The node to be added.
+    ///
+    /// # Notes
+    ///
+    /// This function is idempotent, i.e., adding the same node more than once
+    /// will not result in duplicate nodes in the hypergraph.
     pub fn add_node(&mut self, node: usize) {
         if !self.adj.contains_key(&node) {
             self.adj.insert(node, HashSet::new());
@@ -186,34 +249,37 @@ impl HypergraphRust {
         }
     }
 
+    /// Adds multiple nodes to the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `nodes`: The nodes to be added.
+    ///
+    /// # Notes
+    ///
+    /// This function is idempotent, i.e., adding the same node more than once
+    /// will not result in duplicate nodes in the hypergraph.
     pub fn add_nodes(&mut self, nodes: Vec<usize>) {
         for node in nodes {
             let _ = self.add_node(node);
         }
     }
 
-    // pub fn get_nodes(&self, metadata: bool) -> Vec<(usize, Option<HashMap<String, String>>)> {
-    //     if !metadata {
-    //         self.adj.keys().map(|&node| (node, None)).collect()
-    //     } else {
-    //         self.adj.keys().filter_map(|&node| {
-    //             if let Some(attributes) = self.attr.get_attributes(node) {
-    //                 if attributes.get("type") == Some(&"node".to_string()) {
-    //                     Some((node, Some(attributes.clone())))
-    //                 } else {
-    //                     None
-    //                 }
-    //             } else {
-    //                 None
-    //             }
-    //         }).collect()
-    //     }
-    // }
-
+    /// Returns all nodes in the hypergraph.
+    ///
+    /// # Returns
+    ///
+    /// A vector of all node IDs in the hypergraph.
     pub fn get_nodes_without_metadata(&self) -> Vec<usize> {
         self.adj.keys().copied().collect()
     }
 
+    /// Returns all nodes in the hypergraph, including their metadata.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tuples, where each tuple contains a node ID and its
+    /// associated metadata.
     pub fn get_nodes_with_metadata(&self) -> Vec<(usize, HashMap<String, String>)> {
         self.adj.keys().filter_map(|&node| {
             if let Some(attributes) = self.attr.get_attributes(node) {
@@ -228,62 +294,54 @@ impl HypergraphRust {
         }).collect()
     }
 
-    pub fn get_meta(&self, obj_id: usize) -> Option<HashMap<String, String>> {
-        self.attr.get_attributes(obj_id).cloned()
+    /// Returns the metadata associated with the given object ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `obj_id`: The ID of the object whose metadata should be retrieved.
+    ///
+    /// # Returns
+    ///
+    /// A `HashMap` containing the object's metadata, or `None` if the object
+    /// is not present in the hypergraph.
+    pub fn get_meta(&self, obj_id: usize) -> Option<&HashMap<String, String>> {
+        let attr = self.attr.get_attributes(obj_id);
+        attr
     }
 
-    // pub fn get_edges(
-    //     &self,
-    //     ids: bool,
-    //     order: Option<usize>,
-    //     size: Option<usize>,
-    //     up_to: bool,
-    // ) -> Result<Vec<&Vec<usize>>, String> {
-    //     if order.is_some() && size.is_some() {
-    //         return Err("Order and size cannot both be specified.".to_string());
-    //     }
-
-    //     let mut edges = Vec::new();
-
-    //     if order.is_none() && size.is_none() {
-    //         if ids {
-    //             edges = self.edge_list.keys().collect();
-    //         } else {
-    //             edges = self.edge_list.keys().collect();
-    //         }
-    //     } else {
-    //         let target_order = size.map(|s| s - 1).or(order).unwrap();
-
-    //         if !up_to {
-    //             if let Some(order_edges) = self.edges_by_order.get(&target_order) {
-    //                 edges.extend(order_edges.iter());
-    //             }
-    //         } else {
-    //             for i in 0..=target_order {
-    //                 if let Some(order_edges) = self.edges_by_order.get(&i) {
-    //                     edges.extend(order_edges.iter());
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     Ok(edges)
-    // }
-
+    /// Returns all edges in the hypergraph, without filtering.
+    ///
+    /// # Returns
+    ///
+    /// A vector of references to all edges in the hypergraph.
     #[inline]
-    fn get_all_edges(&self) -> Vec<&Vec<usize>> {
-        // Prealloca il vettore con la capacità del numero di spigoli presenti
-        let mut edges = Vec::with_capacity(self.edge_list.len());
-
-        edges.extend(self.edge_list.keys());
-        
-        
-        edges
+    pub fn get_all_edges(&self) -> Vec<&Vec<usize>> {
+        // let mut edges = Vec::with_capacity(self.edge_list.len());
+        // edges.extend(self.edge_list.keys());        
+        // edges
+        self.edge_list.keys().collect()
     }
 
+    /// Returns all edges in the hypergraph, with optional filtering.
+    ///
+    /// # Arguments
+    ///
+    /// * `ids`: If `true`, returns the IDs of the edges instead of references to
+    ///   the edges themselves.
+    /// * `order`: If specified, returns only edges with this order.
+    /// * `size`: If specified, returns only edges with this size (i.e., number of
+    ///   nodes).
+    /// * `up_to`: If `true`, returns all edges with orders up to and including
+    ///   `order`, or up to and including `size - 1` if `size` is specified.
+    ///
+    /// # Returns
+    ///
+    /// A vector of references to the edges in the hypergraph that match the
+    /// specified criteria, or an error message if `order` and `size` are both
+    /// specified.
     pub fn get_edges(
         &self,
-        ids: bool,
+        _ids: bool,
         order: Option<usize>,
         size: Option<usize>,
         up_to: bool,
@@ -321,6 +379,12 @@ impl HypergraphRust {
         Ok(edges)
     }
 
+    /// Returns all edges in the hypergraph, along with their associated metadata.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tuples, where each tuple contains a reference to an edge and a
+    /// `HashMap` containing its associated metadata.
     pub fn get_edges_metadata(&self) -> Vec<(Vec<usize>, HashMap<String, String>)> {
         self.edge_list
             .iter()
@@ -336,10 +400,25 @@ impl HypergraphRust {
             .collect()
     }
 
+    /// Returns `true` if the hypergraph is weighted, `false` otherwise.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the hypergraph is weighted, `false` otherwise.
     pub fn is_weighted(&self) -> bool {
         return self.weighted;
     }
 
+    /// Removes an edge from the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `edge`: The edge to be removed.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the edge was removed successfully.
+    /// * `Err(String)` if the edge does not exist in the hypergraph.
     pub fn remove_edge(&mut self, edge: Vec<usize>) -> Result<(), String> {
         let mut sorted_edge = edge.clone();
         sorted_edge.sort_unstable();
@@ -376,18 +455,38 @@ impl HypergraphRust {
         }
     }
 
+    /// Removes multiple edges from the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `edges`: The edges to be removed.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the edges were removed successfully.
+    /// * `Err(String)` if any of the edges do not exist in the hypergraph.
     pub fn remove_edges(&mut self, edges: Vec<Vec<usize>>) {
         for edge in edges {
             let _ = self.remove_edge(edge);
         }
     }
 
+    /// Removes a node from the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `node`: The node to be removed.
+    /// * `keep_edges`: A boolean indicating whether to keep the edges associated with the node.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the node was removed successfully.
+    /// * `Err(String)` if the node does not exist in the hypergraph.
     pub fn remove_node(
         &mut self,
         node: usize,
         keep_edges: bool,
     ) -> Result<(), String> {
-        // Prova a rimuovere il nodo da adj
         if let Some(edges) = self.adj.remove(&node) {
             if !keep_edges {
                 for edge_id in edges {
@@ -409,6 +508,17 @@ impl HypergraphRust {
         }
     }
 
+    /// Removes multiple nodes from the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `nodes`: The nodes to be removed.
+    /// * `keep_edges`: A boolean indicating whether to keep the edges associated with the nodes.
+    ///
+    /// # Notes
+    ///
+    /// The function is idempotent, i.e., attempting to remove a node that is not in the hypergraph
+    /// does not result in an error.
     pub fn remove_nodes(
         &mut self,
         nodes: Vec<usize>,
@@ -419,22 +529,53 @@ impl HypergraphRust {
         }
     }
 
+    /// Checks if the hypergraph is uniform.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the hypergraph has uniform edge sizes, `false` otherwise.
     pub fn is_uniform(&self) -> bool {
-        return self.edges_by_order.len() == 1;
+        self.edges_by_order.len() == 1
     }
 
+    /// Returns the maximum order of the hypergraph.
+    ///
+    /// # Returns
+    ///
+    /// The maximum order of the hypergraph.
     pub fn max_order(&self) -> usize {
         return self.max_order;
     }
 
+    /// Returns the maximum size of the hypergraph.
+    ///
+    /// # Returns
+    ///
+    /// The maximum size of the hypergraph, which is the maximum order plus one.
     pub fn max_size(&self) -> usize {
-        return self.max_order + 1;
+        self.max_order + 1
     }
 
+    /// Returns the number of nodes in the hypergraph.
+    ///
+    /// # Returns
+    ///
+    /// The number of nodes in the hypergraph.
     pub fn num_nodes(&self) -> usize {
         return self.adj.len()
     }
 
+    /// Returns the number of edges in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `order`: The order of the edges to be counted. If `None`, counts all edges.
+    /// * `size`: The size of the edges to be counted, which is the order plus one. If `None`, counts all edges.
+    /// * `up_to`: A boolean indicating whether to count all edges up to the specified order or size. If `false`, counts only edges of the specified order or size.
+    ///
+    /// # Returns
+    ///
+    /// The number of edges in the hypergraph that match the specified criteria.
     pub fn num_edges(
         &self,
         order: Option<usize>,
@@ -467,16 +608,42 @@ impl HypergraphRust {
         }
     }
 
+    /// Checks if an edge exists in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `edge`: A vector representing the edge to be checked.
+    ///
+    /// # Returns
+    ///
+    /// * `true` if the edge exists in the hypergraph.
+    /// * `false` otherwise.
     pub fn check_edge(&self, edge: Vec<usize>) -> bool {
-        let mut sorted_edge = edge.clone();
+        let mut sorted_edge = edge;
         sorted_edge.sort_unstable();
         self.edge_list.contains_key(&sorted_edge)
     }
 
+    /// Checks if a node exists in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `node`: The node to be checked.
+    ///
+    /// # Returns
+    ///
+    /// * `true` if the node exists in the hypergraph.
+    /// * `false` otherwise.
     pub fn check_node(&self, node: usize) -> bool {
         self.adj.contains_key(&node)
     }
 
+    /// Creates a deep copy of the hypergraph.
+    ///
+    /// # Returns
+    ///
+    /// A new `HypergraphRust` instance with the same nodes, edges, and attributes
+    /// as the current hypergraph.
     pub fn copy(&self) -> HypergraphRust {
         let new_hypergraph = HypergraphRust {
             attr: self.attr.clone(),
@@ -490,6 +657,17 @@ impl HypergraphRust {
         new_hypergraph
     }
 
+    /// Sets metadata for the specified object ID in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `obj_id`: The ID of the object whose metadata is to be set.
+    /// * `metadata`: A `HashMap` containing key-value pairs representing the metadata to be set.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the metadata was successfully set.
+    /// * `Err(String)` if the object ID is not found in the hypergraph.
     pub fn set_meta(&mut self, obj_id: usize, metadata: HashMap<String, String>) -> Result<(), String> {
         if let Some(_obj) = self.attr.get_object_by_id(obj_id) {
             self.attr.set_attributes_by_id(obj_id, metadata);
@@ -499,12 +677,21 @@ impl HypergraphRust {
         }
     }
 
+    /// Returns a sorted vector of all edge sizes in the hypergraph.
+    ///
+    /// # Returns
+    ///
+    /// A vector of `usize` values, sorted in ascending order, representing the sizes of all edges in the hypergraph.
     pub fn get_sizes(&self) -> Vec<usize>{
-        let mut sizes: Vec<usize> = self.edge_list.keys().map(|edge| edge.len()).collect();
-        sizes.sort_unstable();
+        let sizes: Vec<usize> = self.edge_list.keys().map(|edge| edge.len()).collect();
         sizes 
     }
 
+    /// Returns a distribution of edge sizes in the hypergraph.
+    ///
+    /// # Returns
+    ///
+    /// A `HashMap` where each key is an edge size and the corresponding value is the count of edges of that size.
     pub fn distribution_sizes(&self) -> HashMap<usize, usize> {
         let mut size_distribution = HashMap::new();
         for edge in self.edge_list.keys() {
@@ -514,12 +701,26 @@ impl HypergraphRust {
         size_distribution
     }
 
+    /// Returns a sorted vector of all edge orders in the hypergraph.
+    ///
+    /// # Returns
+    ///
+    /// A vector of `usize` values, sorted in ascending order, representing the orders of all edges in the hypergraph.
     pub fn get_orders(&self) -> Vec<usize> {
-        let mut orders: Vec<usize> = self.edge_list.keys().map(|edge| edge.len() - 1).collect();
-        orders.sort_unstable();
+        let orders: Vec<usize> = self.edge_list.keys().map(|edge| edge.len() - 1).collect();
         orders
     }
 
+    /// Returns the value of a specific attribute for a given object.
+    ///
+    /// # Arguments
+    ///
+    /// * `obj`: The ID of the object whose attribute value should be retrieved.
+    /// * `attr`: The name of the attribute whose value should be retrieved.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a reference to a `String` if the object and attribute exist, or an error message otherwise.
     pub fn get_attr_meta(&self, obj: usize, attr: String) -> Result<&String, String> {
         if let Some(attributes) = self.attr.get_attributes(obj) {
             if let Some(value) = attributes.get(&attr) {
@@ -538,6 +739,17 @@ impl HypergraphRust {
         }
     }
 
+    /// Returns the incident edges of a given node in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `node`: The ID of the node whose incident edges should be retrieved.
+    /// * `order`: An optional parameter specifying the order of the edges to be returned.
+    /// * `size`: An optional parameter specifying the size of the edges to be returned.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a vector of vectors of `usize` values representing the incident edges of the node
     pub fn get_incident_edges(
         &self,
         node: usize,
@@ -577,6 +789,15 @@ impl HypergraphRust {
         Ok(incident_edges)
     }
 
+    /// Returns the weight of a specific edge in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `edge`: The edge whose weight should be retrieved.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the weight of the edge, or an error message if the edge is not in the hypergraph.
     pub fn get_weight(&self, edge: Vec<usize>) -> Result<f64, String> {
         let mut sorted_edge = edge.clone();
         sorted_edge.sort_unstable();
@@ -590,6 +811,16 @@ impl HypergraphRust {
         }
     }
 
+    /// Sets the weight of a specific edge in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `edge`: The edge whose weight should be set.
+    /// * `weight`: The new weight for the edge.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing `()`, or an error message if the edge is not in the hypergraph.
     pub fn set_weight(&mut self, edge: Vec<usize>, weight: f64) -> Result<(), String> {
         let mut sorted_edge = edge.clone();
         sorted_edge.sort_unstable();
@@ -602,7 +833,17 @@ impl HypergraphRust {
         }
     }
 
-
+    /// Returns the neighbors of a given node in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `node`: The ID of the node whose neighbors should be retrieved.
+    /// * `order`: An optional parameter specifying the order of the edges to be returned.
+    /// * `size`: An optional parameter specifying the size of the edges to be returned.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a vector of `usize` values representing the neighbors of the node
     pub fn get_neighbors(
         &self,
         node: usize,
@@ -628,55 +869,78 @@ impl HypergraphRust {
         Ok(neighbors.into_iter().collect::<Vec<_>>())
     }
 
-    
-    // da rivedere 
+    /// Returns the weights of all edges in the hypergraph.
+    ///
+    /// # Arguments
+    ///
+    /// * `order`: An optional parameter specifying the order of the edges to be returned.
+    /// * `size`: An optional parameter specifying the size of the edges to be returned.
+    /// * `up_to`: A boolean value indicating whether to return weights up to the specified order or size.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a vector of `f64` values representing the weights of the edges, or an error message if the edge is not in the hypergraph.
     pub fn get_weights(
         &self,
         order: Option<usize>,
         size: Option<usize>,
         up_to: bool,
     ) -> Result<Vec<f64>, String> {
-        // Controlla se sia `order` che `size` sono specificati
+        // Controllo se entrambi `order` e `size` sono specificati
         if order.is_some() && size.is_some() {
             return Err("Order and size cannot be both specified.".to_string());
         }
-    
+
         let mut weights: Vec<f64> = Vec::new();
-    
+
         // Caso 1: né `order` né `size` sono specificati -> restituisce tutti i pesi
         if order.is_none() && size.is_none() {
             weights.extend(self.edge_list.values().cloned());
         } else {
-            // Calcola l'ordine target
-            let target_order = size.or(order).map_or(0, |val| val - 1);
-    
+            // Determina l'ordine target: usa `size - 1` se `size` è specificato, altrimenti usa `order`
+            let target_order = size.map(|s| s - 1).or(order);
+
+            // `up_to` == true, quindi restituisce tutti i pesi degli spigoli fino a `target_order`
             if up_to {
-                // Restituisce i pesi di tutti gli spigoli fino a `target_order`
-                for i in 1..=target_order {
-                    if let Some(order_edges) = self.edges_by_order.get(&i) {
+                // Itera sugli ordini da 1 fino a `target_order`
+                for current_order in 0..=target_order.unwrap_or(0) {
+                    if let Some(order_edges) = self.edges_by_order.get(&current_order) {
                         for edge in order_edges {
-                            if let Some(weight) = self.edge_list.get(edge) {
-                                weights.push(*weight);
+                            if let Some(&weight) = self.edge_list.get(edge) {
+                                weights.push(weight);
                             }
                         }
                     }
                 }
             } else {
-                // Restituisce i pesi degli spigoli di esattamente `target_order`
-                if let Some(order_edges) = self.edges_by_order.get(&target_order) {
-                    for edge in order_edges {
-                        if let Some(weight) = self.edge_list.get(edge) {
-                            weights.push(*weight);
+                // `up_to` == false, restituisce solo i pesi degli spigoli di esattamente `target_order`
+                if let Some(current_order) = target_order {
+                    if let Some(order_edges) = self.edges_by_order.get(&current_order) {
+                        for edge in order_edges {
+                            if let Some(&weight) = self.edge_list.get(edge) {
+                                weights.push(weight);
+                            }
                         }
                     }
                 }
             }
         }
-    
+
         Ok(weights)
     }
 
+    /// Returns a subgraph of the hypergraph with the specified nodes.
+    ///
+    /// # Arguments
+    ///
+    /// * `nodes`: The nodes to be included in the subgraph.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a `HypergraphRust` object representing the subgraph, or an error message if the nodes are not in the hypergraph.
     pub fn subhypergraph(&self, nodes: Vec<usize>) -> HypergraphRust {
+        let node_set: HashSet<usize> = nodes.iter().cloned().collect();
+        
         let mut subgraph = HypergraphRust {
             attr: MetaHandler::new(),
             weighted: self.weighted,
@@ -686,13 +950,13 @@ impl HypergraphRust {
             edge_list: HashMap::new(),
         };
     
-        // Aggiungi i nodi al sottografo
+        // Aggiungi i nodi al subgrafo
         subgraph.add_nodes(nodes.clone());
     
-        // Copia i metadati dei nodi nel sottografo
-        for &node in &nodes {
+        // Copia i metadati dei nodi nel subgrafo
+        for &node in &node_set {
             if let Some(meta) = self.get_meta(node) {
-                if let Err(e) = subgraph.set_meta(node, meta) {
+                if let Err(e) = subgraph.set_meta(node, meta.clone()) {
                     eprintln!("Error setting metadata for node {}: {:?}", node, e);
                 }
             } else {
@@ -702,14 +966,16 @@ impl HypergraphRust {
     
         // Processa gli spigoli
         for (edge, &weight) in &self.edge_list {
-            if edge.iter().all(|&node| nodes.contains(&node)) {
+            // Verifica che tutti i nodi dell'arco siano nel set
+            if edge.iter().all(|&node| node_set.contains(&node)) {
                 // Verifica che tutti i nodi dell'arco abbiano metadati
-                if edge.iter().all(|&node| self.get_meta(node).is_some()) {
+                let all_have_meta = edge.iter().all(|&node| self.get_meta(node).is_some());
+                if all_have_meta {
                     if let Some(metadata) = self.get_meta(edge[0]) {
                         let result = if self.weighted {
-                            subgraph.add_edge(edge.clone(), Some(weight), Some(metadata))
+                            subgraph.add_edge(edge.clone(), Some(weight), Some(metadata.clone()))
                         } else {
-                            subgraph.add_edge(edge.clone(), None, Some(metadata))
+                            subgraph.add_edge(edge.clone(), None, Some(metadata.clone()))
                         };
     
                         if let Err(e) = result {
@@ -720,16 +986,60 @@ impl HypergraphRust {
                     eprintln!("One or more nodes in edge {:?} do not have metadata", edge);
                 }
             } else {
-                let missing_nodes: Vec<_> = edge
+                let _missing_nodes: Vec<_> = edge
                     .iter()
-                    .filter(|&&node| !nodes.contains(&node))
+                    .filter(|&&node| !node_set.contains(&node))
                     .collect();
-                eprintln!("Skipping edge {:?} due to missing nodes: {:?}", edge, missing_nodes);
+                // eprintln!("Skipping edge {:?} due to missing nodes: {:?}", edge, missing_nodes);
             }
         }
     
         subgraph
     }
+
+    // pub fn subhypergraph(&self, nodes: Vec<usize>) -> Result<HypergraphRust, String> {
+    //     let node_set: HashSet<usize> = nodes.iter().cloned().collect();    
+    //     let mut subgraph = HypergraphRust {
+    //         attr: MetaHandler::new(),
+    //         weighted: self.weighted,
+    //         edges_by_order: HashMap::new(),
+    //         adj: HashMap::new(),
+    //         max_order: 0,
+    //         edge_list: HashMap::new(),
+    //     };    
+    //     // Aggiungi i nodi al subgrafo
+    //     subgraph.add_nodes(nodes.clone());    
+    //     // Copia i metadati dei nodi nel subgrafo
+    //     for &node in &node_set {
+    //         if let Some(meta) = self.get_meta(node) {
+    //             subgraph.set_meta(node, meta.clone()).map_err(|e| {
+    //                 format!("Errore durante l'impostazione dei metadati per il nodo {}: {:?}", node, e)
+    //             })?;
+    //         } else {
+    //             return Err(format!("Metadati non trovati per il nodo {}", node));
+    //         }
+    //     }    
+    //     // Processa gli spigoli
+    //     for (edge, &weight) in &self.edge_list {
+    //         if edge.iter().all(|&node| node_set.contains(&node)) {
+    //             if edge.iter().all(|&node| self.get_meta(node).is_some()) {
+    //                 if let Some(metadata) = self.get_meta(edge[0]) {
+    //                     let result = if self.weighted {
+    //                         subgraph.add_edge(edge.clone(), Some(weight), Some(metadata.clone()))
+    //                     } else {
+    //                         subgraph.add_edge(edge.clone(), None, Some(metadata.clone()))
+    //                     };    
+    //                     result.map_err(|e| {
+    //                         format!("Errore durante l'aggiunta dell'arco {:?} al sottografo: {:?}", edge, e)
+    //                     })?;
+    //                 }
+    //             } else {
+    //                 return Err(format!("Uno o più nodi nell'arco {:?} non hanno metadati", edge));
+    //             }
+    //         }
+    //     }    
+    //     Ok(subgraph)
+    // }
 
     // pub fn subhypergraph_by_orders(
     //     &self,
@@ -747,7 +1057,6 @@ impl HypergraphRust {
     //             "Orders and sizes cannot both be specified.",
     //         ));
     //     }
-
     //     let mut subgraph = Hypergraph {
     //         attr: MetaHandler::new(),
     //         weighted: self.weighted,
@@ -756,11 +1065,9 @@ impl HypergraphRust {
     //         max_order: 0,
     //         edge_list: HashMap::new(),
     //     };
-
     //     // Store nodes as Rust types directly
     //     let nodes: Vec<(usize, HashMap<String, String>)> = if keep_nodes {
     //         let nodes_with_metadata = self.get_nodes( true);
-
     //         nodes_with_metadata
     //             .into_iter()
     //             .map(|(node, meta_py)| {
@@ -771,19 +1078,15 @@ impl HypergraphRust {
     //     } else {
     //         Vec::new()
     //     };
-
     //     // Add nodes to the subgraph
     //     for (node, meta) in nodes {
     //         subgraph.add_node(node);
     //         subgraph.set_meta(node, meta);
     //     }
-
     //     let sizes = sizes.unwrap_or_else(|| orders.unwrap().iter().map(|&order| order + 1).collect());
-
     //     // Process edges
     //     for size in sizes {
     //         let edges = self.get_edges(false, None, Some(size), false, false, false)?;
-
     //         for edge in edges.iter() {
     //             let edge_list: Vec<usize> = edge.extract()?;
     //             let weight = if subgraph.weighted {
@@ -791,15 +1094,12 @@ impl HypergraphRust {
     //             } else {
     //                 None
     //             };
-
     //             // Get metadata only once
     //             let meta = self.get_meta( edge_list[0]);
-
     //             // Add edge with weight and metadata
     //             subgraph.add_edge(edge_list.clone(), weight, meta)?;
     //         }
     //     }
-
     //     // Convert the subgraph back to Python types if needed
     //     Ok(subgraph)
     // }

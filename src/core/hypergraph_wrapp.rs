@@ -7,7 +7,7 @@ use super::hypergraph_rust::HypergraphRust;
 #[pyclass]
 #[derive(Clone)]
 pub struct Hypergraph {
-    inner: HypergraphRust,
+    pub inner: HypergraphRust,
 }
 
 #[pymethods]
@@ -61,7 +61,7 @@ impl Hypergraph {
     }
 
     pub fn get_nodes(&self, py: Python, metadata: bool) -> PyResult<PyObject> {
-                
+        
         if metadata {
             let nodes = self.inner.get_nodes_with_metadata();
             Ok(nodes.into_py(py))
@@ -69,6 +69,7 @@ impl Hypergraph {
             let nodes = self.inner.get_nodes_without_metadata();
             Ok(nodes.into_py(py))
         }
+
 
     }
 
@@ -314,7 +315,11 @@ impl Hypergraph {
 
     pub fn subhypergraph(&self, nodes: Vec<usize>) -> PyResult<Hypergraph> {
         let subgraph = self.inner.subhypergraph(nodes);
-        Ok(Hypergraph { inner: subgraph })
+        Ok(Hypergraph { inner: subgraph })  
+        // match self.inner.subhypergraph(nodes) {
+        //     Ok(subgraph) => Ok(Hypergraph { inner: subgraph }),
+        //     Err(err_msg) => Err(PyValueError::new_err(err_msg)),
+        // }
     }
 
     // #[pyo3(signature = (orders = None, sizes = None, keep_nodes = true))]
