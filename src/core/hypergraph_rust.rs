@@ -1,4 +1,4 @@
-use super::meta_handler::MetaHandler;
+use super::{label_encoder::LabelEncoder, meta_handler::MetaHandler};
 use std::collections::{HashMap, HashSet};
 
 /// A hypergraph data structure.
@@ -79,38 +79,42 @@ impl HypergraphRust {
             (false, Some(_)) => return Err("If the hypergraph is not weighted, no weight must be provided.".to_string()),
             _ => {}
         }
-
+    
         let mut sorted_edge = edge;
         sorted_edge.sort_unstable();
         let edge_str = format!("{:?}", sorted_edge);
-
-        let edge_idx = self.attr.add_obj(edge_str.clone(), Some("edge".to_string()));
-        if let Some(metadata) = metadata {
-            let _ = self.attr.set_attr(&edge_str, metadata);
-        }
-
+    
+        let edge_idx = self.attr.add_obj(edge_str.clone(), Some("edge".to_string()), metadata);
+    
         let order = sorted_edge.len() - 1;
         self.max_order = self.max_order.max(order);
-
+    
         self.edges_by_order
             .entry(order)
             .or_insert_with(HashSet::new)
             .insert(sorted_edge.clone());
-
+    
         if self.weighted {
             self.edge_list.insert(sorted_edge.clone(), weight.unwrap_or(1.0));
         } else {
             *self.edge_list.entry(sorted_edge.clone()).or_insert(1.0) += 1.0;
         }
-
+    
         for &node in &sorted_edge {
-            self.add_node(node);
+            // Verifica se il nodo ha già un ID nei metadati
+            if self.attr.get_id_by_object(&node.to_string()).is_none() {
+                let mut node_metadata = HashMap::new();
+                node_metadata.insert("type".to_string(), "node".to_string());
+                node_metadata.insert("name".to_string(), node.to_string());
+                self.attr.add_obj(node.to_string(), Some("node".to_string()), Some(node_metadata));
+            }
+            
             self.adj
                 .entry(node)
                 .or_insert_with(HashSet::new)
                 .insert(edge_idx);
         }
-
+    
         Ok(())
     }
 
@@ -132,14 +136,12 @@ impl HypergraphRust {
         weights: Option<Vec<f64>>,
         metadata: Option<HashMap<String, String>>,
     ) -> Result<(), String> {
-        // Controllo dei pesi per grafi ponderati e non ponderati
         match (self.weighted, &weights) {
             (true, None) => return Err("Weights must be provided for a weighted hypergraph.".to_string()),
             (false, Some(_)) => return Err("Weights should not be provided for an unweighted hypergraph.".to_string()),
             _ => {}
         }
     
-        // Verifica che il numero di pesi corrisponda al numero di spigoli
         if let Some(ref w) = weights {
             if w.len() != edges.len() {
                 return Err("The number of edges and weights must be the same.".to_string());
@@ -159,11 +161,20 @@ impl HypergraphRust {
     
             let weight = weights.as_ref().map(|w| w[i]);
     
-            // Se l'arco esiste già, aggiorna il peso e i metadati
+            // Gestisci ogni nodo dell'edge
+            for &node in &edge {
+                if self.attr.get_id_by_object(&node.to_string()).is_none() {
+                    let mut node_metadata = HashMap::new();
+                    node_metadata.insert("type".to_string(), "node".to_string());
+                    node_metadata.insert("name".to_string(), node.to_string());
+                    self.attr.add_obj(node.to_string(), Some("node".to_string()), Some(node_metadata));
+                }
+                self.add_node(node);
+            }
+    
             if self.edge_exists(&edge) {
                 self.update_edge(edge, weight, Some(edge_metadata_map))?;
             } else {
-                // Altrimenti, aggiungi l'arco
                 self.add_edge(edge, weight, Some(edge_metadata_map))?;
             }
         }
@@ -242,10 +253,14 @@ impl HypergraphRust {
     pub fn add_node(&mut self, node: usize) {
         if !self.adj.contains_key(&node) {
             self.adj.insert(node, HashSet::new());
-            let mut attributes = HashMap::new();
-            attributes.insert("type".to_string(), "node".to_string());
-            attributes.insert("name".to_string(), node.to_string());
-            self.attr.add_object(node.to_string(), Some(attributes));
+            
+            // Verifica se il nodo ha già un ID nei metadati
+            if self.attr.get_id_by_object(&node.to_string()).is_none() {
+                let mut attributes = HashMap::new();
+                attributes.insert("type".to_string(), "node".to_string());
+                attributes.insert("name".to_string(), node.to_string());
+                self.attr.add_obj(node.to_string(), Some("node".to_string()), Some(attributes));
+            }
         }
     }
 
@@ -289,6 +304,7 @@ impl HypergraphRust {
                     None
                 }
             } else {
+                println!("Nodo: {} senza attributi", node);
                 None
             }
         }).collect()
@@ -760,7 +776,7 @@ impl HypergraphRust {
         let target_order = size.map_or(order, |s| Some(s - 1));
     
         // Recupera gli spigoli incidenti sul nodo
-        let incident_edges: Vec<Vec<usize>> = self.adj.get(&node).map_or(Vec::new(), |edges| {
+        let mut incident_edges: Vec<Vec<usize>> = self.adj.get(&node).map_or(Vec::new(), |edges| {
             edges
                 .iter()
                 .filter_map(|&edge_id| {
@@ -785,7 +801,7 @@ impl HypergraphRust {
                 })
                 .collect()
         });
-    
+        incident_edges.sort_unstable();
         Ok(incident_edges)
     }
 
@@ -1104,21 +1120,18 @@ impl HypergraphRust {
     //     Ok(subgraph)
     // }
 
-    // fn get_mapping(&self) -> PyResult<LabelEncoder> {
-    //     let nodes_py: PyObject = self.get_nodes(py, false)?;
-    //     let nodes_list = nodes_py.downcast_bound::<PyList>(py).map_err(|e| {
-    //         PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!("Errore nel downcast: {:?}", e))
-    //     })?;
+    pub fn get_mapping(&self) -> Result<LabelEncoder, String> {
+        let nodes = self.get_nodes_without_metadata();
         
-    //     let mut nodes: Vec<usize> = Vec::new();
-    //     for node in nodes_list.iter() {
-    //         nodes.push(node.extract::<usize>()?);
-    //     }
+        if nodes.is_empty() {
+            return Err("Errore: nessun nodo trovato.".to_string());
+        }
 
-    //     let mut encoder = LabelEncoder::new();
-    //     encoder.fit(nodes);
-    //     Ok(encoder)
-    // }
+        let mut encoder = LabelEncoder::new();
+        encoder.fit(nodes);
+    
+        Ok(encoder)
+    }
 }
 
 impl std::fmt::Display for HypergraphRust {
