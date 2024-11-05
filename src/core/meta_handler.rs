@@ -23,28 +23,46 @@ where
         }
     }
 
-    pub fn add_obj(&mut self, obj: T, obj_type: Option<String>) -> usize {
-        if !self.obj_2_id.contains_key(&obj) {
-            self.id_2_obj.insert(self.id, obj.clone());
-            self.obj_2_id.insert(obj.clone(), self.id);
-            let mut attributes = HashMap::new();
-            if let Some(t) = obj_type {
-                attributes.insert("type".to_string(), t);
-            }
-            attributes.insert("name".to_string(), obj.to_string());
-            self.attr.insert(self.id, attributes);
-            self.id += 1;
+    pub fn add_obj(
+        &mut self, 
+        obj: T, 
+        obj_type: Option<String>, 
+        attributes: Option<HashMap<String, String>>
+    ) -> usize {
+        
+        let obj_clone = obj.clone(); 
+    
+        if let Some(&existing_id) = self.obj_2_id.get(&obj_clone) {
+            return existing_id;
         }
-        self.get_id(&obj).unwrap()
+    
+        let obj_id = self.id;
+        self.id += 1;
+    
+        self.id_2_obj.insert(obj_id, obj_clone.clone());
+        self.obj_2_id.insert(obj_clone.clone(), obj_id);
+    
+        let mut combined_attributes = HashMap::new();
+    
+        if let Some(t) = obj_type {
+            combined_attributes.insert("type".to_string(), t);
+        }
+    
+        combined_attributes.insert("name".to_string(), obj_clone.to_string());
+    
+        if let Some(attrs) = attributes {
+            combined_attributes.extend(attrs);
+        }
+    
+        self.attr.insert(obj_id, combined_attributes);
+    
+        obj_id
     }
 
     pub fn get_id(&self, obj: &T) -> Result<usize, String> {
         self.obj_2_id.get(obj).cloned().ok_or_else(|| format!("No object {}.", obj))
     }
 
-    // pub fn get_obj(&self, idx: usize) -> Result<&T, String> {
-    //     self.id_2_obj.get(&idx).ok_or_else(|| format!("No object with id {}.", idx))
-    // }
 
     pub fn set_attr(&mut self, obj: &T, new_attr: HashMap<String, String>) -> Result<(), String> {
         let id = self.get_id(obj)?;
@@ -58,24 +76,6 @@ where
     pub fn get_attr(&self, obj: &T) -> Result<&HashMap<String, String>, String> {
         let idx = self.get_id(obj)?;
         self.attr.get(&idx).ok_or_else(|| format!("No object {}.", obj))
-    }
-
-    pub fn add_object(&mut self, obj: T, attributes: Option<HashMap<String, String>>) -> usize {
-        if let Some(&existing_id) = self.obj_2_id.get(&obj) {
-            return existing_id;
-        }
-
-        let obj_id = self.id;
-        self.id += 1;
-
-        self.id_2_obj.insert(obj_id, obj.clone());
-        self.obj_2_id.insert(obj, obj_id);
-
-        if let Some(attrs) = attributes {
-            self.attr.insert(obj_id, attrs);
-        }
-
-        obj_id
     }
 
     pub fn get_object_by_id(&self, obj_id: usize) -> Option<&T> {
