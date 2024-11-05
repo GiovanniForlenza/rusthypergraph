@@ -69,8 +69,7 @@ impl Hypergraph {
             let nodes = self.inner.get_nodes_without_metadata();
             Ok(nodes.into_py(py))
         }
-
-
+        
     }
 
     pub fn get_meta(&self, py: Python, obj_id: usize) -> PyResult<Option<PyObject>> {
@@ -313,14 +312,22 @@ impl Hypergraph {
         }
     }
 
-    pub fn subhypergraph(&self, nodes: Vec<usize>) -> PyResult<Hypergraph> {
-        let subgraph = self.inner.subhypergraph(nodes);
-        Ok(Hypergraph { inner: subgraph })  
-        // match self.inner.subhypergraph(nodes) {
-        //     Ok(subgraph) => Ok(Hypergraph { inner: subgraph }),
-        //     Err(err_msg) => Err(PyValueError::new_err(err_msg)),
-        // }
+    #[pyo3(name = "get_mapping")]
+    pub fn get_mapping(&self, py: Python) -> PyResult<PyObject> {
+        self.inner
+            .get_mapping()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e))
+            .map(|m| m.into_py(py))
     }
+
+    // pub fn subhypergraph(&self, nodes: Vec<usize>) -> PyResult<Hypergraph> {
+    //     let subgraph = self.inner.subhypergraph(nodes);
+    //     Ok(Hypergraph { inner: subgraph })  
+    //     // match self.inner.subhypergraph(nodes) {
+    //     //     Ok(subgraph) => Ok(Hypergraph { inner: subgraph }),
+    //     //     Err(err_msg) => Err(PyValueError::new_err(err_msg)),
+    //     // }
+    // }
 
     // #[pyo3(signature = (orders = None, sizes = None, keep_nodes = true))]
     // pub fn subhypergraph_by_orders(
@@ -405,21 +412,6 @@ impl Hypergraph {
     //     Ok(subgraph)
     // }
 
-    // fn get_mapping(&self, py: Python) -> PyResult<LabelEncoder> {
-    //     let nodes_py: PyObject = self.get_nodes(py, false)?;
-    //     let nodes_list = nodes_py.downcast_bound::<PyList>(py).map_err(|e| {
-    //         PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!("Errore nel downcast: {:?}", e))
-    //     })?;
-        
-    //     let mut nodes: Vec<usize> = Vec::new();
-    //     for node in nodes_list.iter() {
-    //         nodes.push(node.extract::<usize>()?);
-    //     }
-
-    //     let mut encoder = LabelEncoder::new();
-    //     encoder.fit(nodes);
-    //     Ok(encoder)
-    // }
 
     fn __str__(&self) -> PyResult<String> {
         Ok(self.inner.to_string())
