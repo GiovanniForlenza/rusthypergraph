@@ -320,6 +320,11 @@ impl Hypergraph {
             .map(|m| m.into_py(py))
     }
 
+    #[pyo3(name = "is_connected")]
+    pub fn is_connected(&self) -> bool {
+        self.inner.is_connected_rust()
+    }
+
     // pub fn subhypergraph(&self, nodes: Vec<usize>) -> PyResult<Hypergraph> {
     //     let subgraph = self.inner.subhypergraph(nodes);
     //     Ok(Hypergraph { inner: subgraph })  

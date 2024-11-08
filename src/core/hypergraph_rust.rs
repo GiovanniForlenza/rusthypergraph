@@ -15,7 +15,7 @@ pub struct HypergraphRust {
     /// Maximum order of the hypergraph.
     max_order: usize,
     /// List of edges with their associated weights.
-    edge_list: HashMap<Vec<usize>, f64>,
+    pub edge_list: HashMap<Vec<usize>, f64>,
 }
 
 impl HypergraphRust {
@@ -943,6 +943,34 @@ impl HypergraphRust {
         }
 
         Ok(weights)
+    }
+
+    pub fn is_connected_rust(&self) -> bool {
+        let mut visited = HashSet::new();
+        let mut to_visit = Vec::new();
+        
+        // Inizia a visitare dall'arco con il peso minore
+        let min_weight_edge = self.edge_list.iter().min_by(|a, b| a.1.partial_cmp(b.1).unwrap());
+        if let Some((edge, _)) = min_weight_edge {
+            to_visit.push(edge.clone());
+        }
+        
+        while let Some(edge) = to_visit.pop() {
+            for node in edge.iter() {
+                if !visited.contains(node) {
+                    visited.insert(*node);
+                    // Aggiungi i vicini non visitati
+                    let neighbors = self.get_neighbors(*node, None, None).unwrap();
+                    for neighbor in neighbors {
+                        if !visited.contains(&neighbor) {
+                            to_visit.push(self.get_incident_edges(neighbor, None, None).unwrap()[0].clone());
+                        }
+                    }
+                }
+            }
+        }
+        
+        visited.len() == self.get_nodes_without_metadata().len()
     }
 
     /// Returns a subgraph of the hypergraph with the specified nodes.
