@@ -1,5 +1,5 @@
 use super::{label_encoder::LabelEncoder, meta_handler::MetaHandler};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, BTreeMap};
 
 /// A hypergraph data structure.
 #[derive(Clone)]
@@ -9,13 +9,13 @@ pub struct HypergraphRust {
     /// Indicates whether the hypergraph is weighted.
     weighted: bool,
     /// Stores edges organized by their order.
-    edges_by_order: HashMap<usize, HashSet<Vec<usize>>>,
+    edges_by_order: BTreeMap<usize, HashSet<Vec<usize>>>,
     /// Adjacency list representation of the hypergraph.
-    adj: HashMap<usize, HashSet<usize>>,
+    adj: rustc_hash::FxHashMap<usize, HashSet<usize>>,
     /// Maximum order of the hypergraph.
     max_order: usize,
     /// List of edges with their associated weights.
-    edge_list: HashMap<Vec<usize>, f64>,
+    pub edge_list: rustc_hash::FxHashMap<Vec<usize>, f64>,
 }
 
 impl HypergraphRust {
@@ -28,10 +28,10 @@ impl HypergraphRust {
         let mut hypergraph = HypergraphRust {
             attr: MetaHandler::new(),
             weighted,
-            edges_by_order: HashMap::new(),
-            adj: HashMap::new(),
+            edges_by_order: BTreeMap::new(),
+            adj: rustc_hash::FxHashMap::default(),
             max_order: 0,
-            edge_list: HashMap::new(),
+            edge_list: rustc_hash::FxHashMap::default(),
         };
 
         if let Some(edges) = edge_list {
@@ -74,31 +74,30 @@ impl HypergraphRust {
         weight: Option<f64>,
         metadata: Option<HashMap<String, String>>,
     ) -> Result<(), String> {
-        match (self.weighted, weight) {
-            (true, None) => return Err("If the hypergraph is weighted, a weight must be provided.".to_string()),
-            (false, Some(_)) => return Err("If the hypergraph is not weighted, no weight must be provided.".to_string()),
-            _ => {}
+        // Pre-allocare il vettore con la dimensione corretta
+        let mut sorted_edge = Vec::with_capacity(edge.len());
+        sorted_edge.extend_from_slice(&edge);
+        sorted_edge.sort_unstable(); // sort_unstable è più veloce di sort
+
+        // Usa entry API per ridurre i lookup
+        self.edges_by_order
+            .entry(sorted_edge.len() - 1)
+            .or_insert_with(HashSet::new)
+            .insert(sorted_edge.clone());
+
+        // Usa insert invece di entry per i pesi quando possibile
+        if self.weighted {
+            self.edge_list.insert(sorted_edge.clone(), weight.unwrap_or(1.0));
+        } else {
+            *self.edge_list.entry(sorted_edge.clone()).or_insert(0.0) += 1.0;
         }
-    
-        let mut sorted_edge = edge;
-        sorted_edge.sort_unstable();
+
         let edge_str = format!("{:?}", sorted_edge);
     
         let edge_idx = self.attr.add_obj(edge_str.clone(), Some("edge".to_string()), metadata);
     
         let order = sorted_edge.len() - 1;
         self.max_order = self.max_order.max(order);
-    
-        self.edges_by_order
-            .entry(order)
-            .or_insert_with(HashSet::new)
-            .insert(sorted_edge.clone());
-    
-        if self.weighted {
-            self.edge_list.insert(sorted_edge.clone(), weight.unwrap_or(1.0));
-        } else {
-            *self.edge_list.entry(sorted_edge.clone()).or_insert(1.0) += 1.0;
-        }
     
         for &node in &sorted_edge {
             // Verifica se il nodo ha già un ID nei metadati
@@ -251,16 +250,13 @@ impl HypergraphRust {
     /// This function is idempotent, i.e., adding the same node more than once
     /// will not result in duplicate nodes in the hypergraph.
     pub fn add_node(&mut self, node: usize) {
-        if !self.adj.contains_key(&node) {
-            self.adj.insert(node, HashSet::new());
-            
-            // Verifica se il nodo ha già un ID nei metadati
-            if self.attr.get_id_by_object(&node.to_string()).is_none() {
-                let mut attributes = HashMap::new();
-                attributes.insert("type".to_string(), "node".to_string());
-                attributes.insert("name".to_string(), node.to_string());
-                self.attr.add_obj(node.to_string(), Some("node".to_string()), Some(attributes));
-            }
+        self.adj.entry(node).or_insert_with(HashSet::new);
+        
+        if self.attr.get_id_by_object(&node.to_string()).is_none() {
+            let mut attributes = HashMap::with_capacity(2);
+            attributes.insert("type".to_string(), "node".to_string());
+            attributes.insert("name".to_string(), node.to_string());
+            self.attr.add_obj(node.to_string(), Some("node".to_string()), Some(attributes));
         }
     }
 
@@ -772,35 +768,28 @@ impl HypergraphRust {
         order: Option<usize>,
         size: Option<usize>,
     ) -> Result<Vec<Vec<usize>>, String> {
-        // Determina l'ordine (calcolato da size o direttamente da order)
         let target_order = size.map_or(order, |s| Some(s - 1));
-    
-        // Recupera gli spigoli incidenti sul nodo
-        let mut incident_edges: Vec<Vec<usize>> = self.adj.get(&node).map_or(Vec::new(), |edges| {
-            edges
-                .iter()
-                .filter_map(|&edge_id| {
-                    // Recupera l'oggetto corrispondente all'ID dello spigolo
-                    self.attr.get_object_by_id(edge_id).and_then(|edge_str| {
-                        let edge: Vec<usize> = edge_str[1..edge_str.len() - 1]
-                            .split(", ")
-                            .filter_map(|s| s.parse().ok())
-                            .collect();
-    
-                        // Filtra in base all'ordine, se specificato
-                        if let Some(order) = target_order {
-                            if edge.len() == order + 1 {
-                                Some(edge)
-                            } else {
-                                None
-                            }
-                        } else {
-                            Some(edge)
-                        }
-                    })
-                })
-                .collect()
-        });
+        
+        // Preallocare la capacità basata sulla dimensione dell'adiacenza
+        let mut incident_edges = Vec::with_capacity(
+            self.adj.get(&node).map_or(0, |edges| edges.len())
+        );
+        
+        if let Some(edges) = self.adj.get(&node) {
+            for &edge_id in edges {
+                if let Some(edge_str) = self.attr.get_object_by_id(edge_id) {
+                    let edge: Vec<usize> = edge_str[1..edge_str.len() - 1]
+                        .split(", ")
+                        .filter_map(|s| s.parse().ok())
+                        .collect();
+                    
+                    if target_order.map_or(true, |order| edge.len() == order + 1) {
+                        incident_edges.push(edge);
+                    }
+                }
+            }
+        }
+        
         incident_edges.sort_unstable();
         Ok(incident_edges)
     }
@@ -866,23 +855,26 @@ impl HypergraphRust {
         order: Option<usize>,
         size: Option<usize>,
     ) -> Result<Vec<usize>, String> {
-        // Recupera gli spigoli incidenti, gestendo l'errore se presente
-        let edges = self.get_incident_edges(node, order, size)?;
-    
-        // Set per memorizzare i vicini, evitando duplicati
-        let mut neighbors: HashSet<usize> = HashSet::new();
-    
-        // Itera sugli spigoli e inserisce i vicini nel set
-        for edge_vec in edges {
-            for &neighbor in &edge_vec {
-                if neighbor != node {
-                    neighbors.insert(neighbor);
+        // Usa una FxHashSet per performance migliori
+        let mut neighbors = rustc_hash::FxHashSet::default();
+        
+        if let Some(edges) = self.adj.get(&node) {
+            for &edge_id in edges {
+                if let Some(edge_str) = self.attr.get_object_by_id(edge_id) {
+                    let edge: Vec<usize> = edge_str[1..edge_str.len() - 1]
+                        .split(", ")
+                        .filter_map(|s| s.parse().ok())
+                        .collect();
+                    
+                    if size.map_or(true, |s| edge.len() == s) 
+                        && order.map_or(true, |o| edge.len() == o + 1) {
+                        neighbors.extend(edge.iter().filter(|&&n| n != node));
+                    }
                 }
             }
         }
-    
-        // Converte il set in un vettore e lo restituisce
-        Ok(neighbors.into_iter().collect::<Vec<_>>())
+        
+        Ok(neighbors.into_iter().collect())
     }
 
     /// Returns the weights of all edges in the hypergraph.
@@ -945,6 +937,44 @@ impl HypergraphRust {
         Ok(weights)
     }
 
+    pub fn is_connected_rust(&self) -> bool {
+        if self.num_nodes() == 0 {
+            return true;
+        }
+
+        let mut visited = rustc_hash::FxHashSet::default();
+        let mut to_visit = Vec::with_capacity(self.num_nodes());
+        
+        // Inizia dal primo nodo disponibile
+        if let Some(&start_node) = self.adj.keys().next() {
+            visited.insert(start_node);
+            to_visit.push(start_node);
+        } else {
+            return true;
+        }
+        
+        while let Some(node) = to_visit.pop() {
+            if let Some(edges) = self.adj.get(&node) {
+                for &edge_id in edges {
+                    if let Some(edge_str) = self.attr.get_object_by_id(edge_id) {
+                        let edge: Vec<usize> = edge_str[1..edge_str.len() - 1]
+                            .split(", ")
+                            .filter_map(|s| s.parse().ok())
+                            .collect();
+                        
+                        for &neighbor in &edge {
+                            if visited.insert(neighbor) {
+                                to_visit.push(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        visited.len() == self.num_nodes()
+    }
+
     /// Returns a subgraph of the hypergraph with the specified nodes.
     ///
     /// # Arguments
@@ -955,170 +985,61 @@ impl HypergraphRust {
     ///
     /// A `Result` containing a `HypergraphRust` object representing the subgraph, or an error message if the nodes are not in the hypergraph.
     pub fn subhypergraph(&self, nodes: Vec<usize>) -> HypergraphRust {
-        let node_set: HashSet<usize> = nodes.iter().cloned().collect();
+        // Creare un HashSet per lookup O(1)
+        let node_set: rustc_hash::FxHashSet<_> = nodes.iter().copied().collect();
         
+        // Stima della capacità per le strutture dati
+        let estimated_edges = (self.edge_list.len() / 2).max(16);
+        let estimated_nodes = nodes.len();
+        
+        // Inizializzare il nuovo hypergraph con capacità pre-allocate
         let mut subgraph = HypergraphRust {
             attr: MetaHandler::new(),
             weighted: self.weighted,
-            edges_by_order: HashMap::new(),
-            adj: HashMap::new(),
+            edges_by_order: BTreeMap::new(),
+            adj: rustc_hash::FxHashMap::with_capacity_and_hasher(estimated_nodes, Default::default()),
             max_order: 0,
-            edge_list: HashMap::new(),
+            edge_list: rustc_hash::FxHashMap::with_capacity_and_hasher(estimated_edges, Default::default()),
         };
-    
-        // Aggiungi i nodi al subgrafo
-        subgraph.add_nodes(nodes.clone());
-    
-        // Copia i metadati dei nodi nel subgrafo
-        for &node in &node_set {
-            if let Some(meta) = self.get_meta(node) {
-                if let Err(e) = subgraph.set_meta(node, meta.clone()) {
-                    eprintln!("Error setting metadata for node {}: {:?}", node, e);
+
+        // Copiare i nodi e i loro metadati
+        for &node in &nodes {
+            if let Some(_node_attrs) = self.attr.get_attributes(node) {
+                subgraph.add_node(node);
+                if let Some(node_meta) = self.get_meta(node) {
+                    let _ = subgraph.set_meta(node, node_meta.clone());
                 }
-            } else {
-                eprintln!("No metadata found for node {}", node);
             }
         }
-    
-        // Processa gli spigoli
-        for (edge, &weight) in &self.edge_list {
-            // Verifica che tutti i nodi dell'arco siano nel set
-            if edge.iter().all(|&node| node_set.contains(&node)) {
-                // Verifica che tutti i nodi dell'arco abbiano metadati
-                let all_have_meta = edge.iter().all(|&node| self.get_meta(node).is_some());
-                if all_have_meta {
-                    if let Some(metadata) = self.get_meta(edge[0]) {
-                        let result = if self.weighted {
-                            subgraph.add_edge(edge.clone(), Some(weight), Some(metadata.clone()))
-                        } else {
-                            subgraph.add_edge(edge.clone(), None, Some(metadata.clone()))
-                        };
-    
-                        if let Err(e) = result {
-                            eprintln!("Error adding edge {:?} to subgraph: {:?}", edge, e);
-                        }
-                    }
+
+        // Copiare gli archi rilevanti
+        for (edge, weight) in &self.edge_list {
+            // Verifica se tutti i nodi dell'arco sono nel sottoinsieme
+            if edge.iter().all(|node| node_set.contains(node)) {
+                let edge_str = format!("{:?}", edge);
+                if let Ok(edge_meta) = self.attr.get_attr(&edge_str) {
+                    subgraph.add_edge(
+                        edge.clone(),
+                        Some(*weight),
+                        Some(edge_meta.clone())
+                    ).unwrap_or_default();
                 } else {
-                    eprintln!("One or more nodes in edge {:?} do not have metadata", edge);
+                    subgraph.add_edge(
+                        edge.clone(),
+                        Some(*weight),
+                        None
+                    ).unwrap_or_default();
                 }
-            } else {
-                let _missing_nodes: Vec<_> = edge
-                    .iter()
-                    .filter(|&&node| !node_set.contains(&node))
-                    .collect();
-                // eprintln!("Skipping edge {:?} due to missing nodes: {:?}", edge, missing_nodes);
             }
         }
-    
+
+        // Aggiornare max_order
+        if let Some(&max) = subgraph.edges_by_order.keys().max() {
+            subgraph.max_order = max;
+        }
+
         subgraph
     }
-
-    // pub fn subhypergraph(&self, nodes: Vec<usize>) -> Result<HypergraphRust, String> {
-    //     let node_set: HashSet<usize> = nodes.iter().cloned().collect();    
-    //     let mut subgraph = HypergraphRust {
-    //         attr: MetaHandler::new(),
-    //         weighted: self.weighted,
-    //         edges_by_order: HashMap::new(),
-    //         adj: HashMap::new(),
-    //         max_order: 0,
-    //         edge_list: HashMap::new(),
-    //     };    
-    //     // Aggiungi i nodi al subgrafo
-    //     subgraph.add_nodes(nodes.clone());    
-    //     // Copia i metadati dei nodi nel subgrafo
-    //     for &node in &node_set {
-    //         if let Some(meta) = self.get_meta(node) {
-    //             subgraph.set_meta(node, meta.clone()).map_err(|e| {
-    //                 format!("Errore durante l'impostazione dei metadati per il nodo {}: {:?}", node, e)
-    //             })?;
-    //         } else {
-    //             return Err(format!("Metadati non trovati per il nodo {}", node));
-    //         }
-    //     }    
-    //     // Processa gli spigoli
-    //     for (edge, &weight) in &self.edge_list {
-    //         if edge.iter().all(|&node| node_set.contains(&node)) {
-    //             if edge.iter().all(|&node| self.get_meta(node).is_some()) {
-    //                 if let Some(metadata) = self.get_meta(edge[0]) {
-    //                     let result = if self.weighted {
-    //                         subgraph.add_edge(edge.clone(), Some(weight), Some(metadata.clone()))
-    //                     } else {
-    //                         subgraph.add_edge(edge.clone(), None, Some(metadata.clone()))
-    //                     };    
-    //                     result.map_err(|e| {
-    //                         format!("Errore durante l'aggiunta dell'arco {:?} al sottografo: {:?}", edge, e)
-    //                     })?;
-    //                 }
-    //             } else {
-    //                 return Err(format!("Uno o più nodi nell'arco {:?} non hanno metadati", edge));
-    //             }
-    //         }
-    //     }    
-    //     Ok(subgraph)
-    // }
-
-    // pub fn subhypergraph_by_orders(
-    //     &self,
-    //     orders: Option<Vec<usize>>,
-    //     sizes: Option<Vec<usize>>,
-    //     keep_nodes: bool,
-    // ) -> Result<Hypergraph, String> {
-    //     if orders.is_none() && sizes.is_none() {
-    //         return Err(String::from(
-    //             "At least one of orders or sizes must be specified",
-    //         ));
-    //     }
-    //     if orders.is_some() && sizes.is_some() {
-    //         return Err(String::from(
-    //             "Orders and sizes cannot both be specified.",
-    //         ));
-    //     }
-    //     let mut subgraph = Hypergraph {
-    //         attr: MetaHandler::new(),
-    //         weighted: self.weighted,
-    //         edges_by_order: HashMap::new(),
-    //         adj: HashMap::new(),
-    //         max_order: 0,
-    //         edge_list: HashMap::new(),
-    //     };
-    //     // Store nodes as Rust types directly
-    //     let nodes: Vec<(usize, HashMap<String, String>)> = if keep_nodes {
-    //         let nodes_with_metadata = self.get_nodes( true);
-    //         nodes_with_metadata
-    //             .into_iter()
-    //             .map(|(node, meta_py)| {
-    //                 let meta: HashMap<String, String> = meta_py.extract().unwrap();
-    //                 (node, meta)
-    //             })
-    //             .collect()
-    //     } else {
-    //         Vec::new()
-    //     };
-    //     // Add nodes to the subgraph
-    //     for (node, meta) in nodes {
-    //         subgraph.add_node(node);
-    //         subgraph.set_meta(node, meta);
-    //     }
-    //     let sizes = sizes.unwrap_or_else(|| orders.unwrap().iter().map(|&order| order + 1).collect());
-    //     // Process edges
-    //     for size in sizes {
-    //         let edges = self.get_edges(false, None, Some(size), false, false, false)?;
-    //         for edge in edges.iter() {
-    //             let edge_list: Vec<usize> = edge.extract()?;
-    //             let weight = if subgraph.weighted {
-    //                 Some(self.get_weight(edge_list.clone())?)
-    //             } else {
-    //                 None
-    //             };
-    //             // Get metadata only once
-    //             let meta = self.get_meta( edge_list[0]);
-    //             // Add edge with weight and metadata
-    //             subgraph.add_edge(edge_list.clone(), weight, meta)?;
-    //         }
-    //     }
-    //     // Convert the subgraph back to Python types if needed
-    //     Ok(subgraph)
-    // }
 
     pub fn get_mapping(&self) -> Result<LabelEncoder, String> {
         let nodes = self.get_nodes_without_metadata();
