@@ -12,6 +12,11 @@ crate-type = ["cdylib"]
 rand = "0.8"
 pyo3 = { version = "0.22.5", features = ["extension-module"] }
 nalgebra = "0.33.2"
+rustc-hash = "1.1"
+petgraph = {version = "0.6.5"}
+itertools = "0.12"
+ordered-float = "3.0"
+rustworkx-core = "0.13.2"
 
 [profile.release]
 lto = 'fat'
