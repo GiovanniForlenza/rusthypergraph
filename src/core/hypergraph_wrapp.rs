@@ -325,98 +325,10 @@ impl Hypergraph {
         self.inner.is_connected_rust()
     }
 
-    // pub fn subhypergraph(&self, nodes: Vec<usize>) -> PyResult<Hypergraph> {
-    //     let subgraph = self.inner.subhypergraph(nodes);
-    //     Ok(Hypergraph { inner: subgraph })  
-    //     // match self.inner.subhypergraph(nodes) {
-    //     //     Ok(subgraph) => Ok(Hypergraph { inner: subgraph }),
-    //     //     Err(err_msg) => Err(PyValueError::new_err(err_msg)),
-    //     // }
-    // }
-
-    // #[pyo3(signature = (orders = None, sizes = None, keep_nodes = true))]
-    // pub fn subhypergraph_by_orders(
-    //     &self,
-    //     py: Python,
-    //     orders: Option<Vec<usize>>,
-    //     sizes: Option<Vec<usize>>,
-    //     keep_nodes: bool,
-    // ) -> PyResult<Self> {
-    //     if orders.is_none() && sizes.is_none() {
-    //         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-    //             "At least one of orders or sizes must be specified",
-    //         ));
-    //     }
-    //     if orders.is_some() && sizes.is_some() {
-    //         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-    //             "Orders and sizes cannot both be specified.",
-    //         ));
-    //     }
-
-    //     let mut subgraph = Hypergraph {
-    //         attr: MetaHandler::new(),
-    //         weighted: self.weighted,
-    //         edges_by_order: HashMap::new(),
-    //         adj: HashMap::new(),
-    //         max_order: 0,
-    //         edge_list: HashMap::new(),
-    //     };
-
-    //     // Store nodes as Rust types directly
-    //     let nodes: Vec<(usize, HashMap<String, String>)> = if keep_nodes {
-    //         let nodes_py = self.get_nodes(py, true)?;
-    //         let nodes_with_metadata: Vec<(usize, PyObject)> = nodes_py.extract(py)?;
-
-    //         nodes_with_metadata
-    //             .into_iter()
-    //             .map(|(node, meta_py)| {
-    //                 let meta: HashMap<String, String> = meta_py.extract(py).unwrap();
-    //                 (node, meta)
-    //             })
-    //             .collect()
-    //     } else {
-    //         Vec::new()
-    //     };
-
-    //     // Add nodes to the subgraph
-    //     for (node, meta) in nodes {
-    //         subgraph.add_node(py, node)?;
-    //         subgraph.set_meta(py, node, meta)?;
-    //     }
-
-    //     let sizes = sizes.unwrap_or_else(|| orders.unwrap().iter().map(|&order| order + 1).collect());
-
-    //     // Process edges
-    //     for size in sizes {
-    //         let edges_py: PyObject = self.get_edges(py, false, None, Some(size), false, false, false)?;
-
-    //         // Effettua il downcast a PyList
-    //         let edges = edges_py.downcast_bound::<PyList>(py).map_err(|e| {
-    //             PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!("Errore nel downcast: {:?}", e))
-    //         })?;
-
-
-    //         for edge_py in edges.iter() {
-    //             let edge_list: Vec<usize> = edge_py.extract()?;
-    //             let weight = if subgraph.weighted {
-    //                 Some(self.get_weight(py, edge_list.clone())?)
-    //             } else {
-    //                 None
-    //             };
-
-    //             // Get metadata only once
-    //             let meta_py = self.get_meta(py, edge_list[0]);
-    //             let meta = meta_py.map(|m| m.extract::<HashMap<String, String>>(py)).transpose()?;
-
-    //             // Add edge with weight and metadata
-    //             subgraph.add_edge(py, edge_list.clone(), weight, meta)?;
-    //         }
-    //     }
-
-    //     // Convert the subgraph back to Python types if needed
-    //     Ok(subgraph)
-    // }
-
+    pub fn subhypergraph(&self, nodes: Vec<usize>) -> PyResult<Hypergraph> {
+        let subgraph = self.inner.subhypergraph(nodes);
+        Ok(Hypergraph { inner: subgraph })
+    }
 
     fn __str__(&self) -> PyResult<String> {
         Ok(self.inner.to_string())
