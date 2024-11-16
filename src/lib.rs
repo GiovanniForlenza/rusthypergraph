@@ -16,5 +16,8 @@ fn rusthypergraph(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(measures::measures_wrapp::jaccard_distance))?;
     m.add_wrapped(wrap_pyfunction!(measures::measures_wrapp::cec_centrality))?;
     m.add_wrapped(wrap_pyfunction!(measures::measures_wrapp::zec_centrality))?;
+    m.add_wrapped(wrap_pyfunction!(measures::measures_wrapp::hec_centrality))?;
+    m.add_wrapped(wrap_pyfunction!(measures::measures_wrapp::s_betweenness))?;
+    m.add_wrapped(wrap_pyfunction!(measures::measures_wrapp::s_closeness))?;
     Ok(())
 }
