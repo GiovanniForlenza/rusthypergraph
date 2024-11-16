@@ -1,6 +1,17 @@
 use std::collections::HashMap;
 use crate::core::hypergraph_rust::HypergraphRust;
 
+/// Calculates the degree of a node in a hypergraph.
+/// 
+/// # Arguments
+/// * `hypergraph` - Reference to the hypergraph
+/// * `node` - The node index to calculate degree for
+/// * `order` - Optional order constraint for incident edges
+/// * `size` - Optional size constraint for incident edges
+/// 
+/// # Returns
+/// * `Ok(u64)` - The degree of the node
+/// * `Err(String)` - Error if both order and size are specified
 pub fn degree_rust(hypergraph: &HypergraphRust, node: usize, order: Option<usize>, size: Option<usize>) -> Result<u64, String> {
     
     let edges = match (order, size) {
@@ -13,6 +24,16 @@ pub fn degree_rust(hypergraph: &HypergraphRust, node: usize, order: Option<usize
     Ok(edges.len() as u64)
 }
 
+/// Calculates the degree sequence for all nodes in a hypergraph.
+/// 
+/// # Arguments
+/// * `hypergraph` - Reference to the hypergraph
+/// * `order` - Optional order constraint for incident edges
+/// * `size` - Optional size constraint for incident edges
+/// 
+/// # Returns
+/// * `Ok(Some(HashMap<usize, u64>))` - Map of node indices to their degrees
+/// * `Err(String)` - Error if both order and size are specified
 pub fn degree_sequence_rust(hypergraph: &HypergraphRust, order: Option<usize>, size: Option<usize>) -> Result<Option<HashMap<usize, u64>>, String> {
     
     if order.is_some() && size.is_some() {
@@ -37,7 +58,15 @@ pub fn degree_sequence_rust(hypergraph: &HypergraphRust, order: Option<usize>, s
     Ok(Some(degree_seq))
 }
 
-
+/// Calculates the Pearson correlation coefficient between two vectors.
+/// 
+/// # Arguments
+/// * `x` - First vector of values
+/// * `y` - Second vector of values
+/// 
+/// # Returns
+/// * `Ok(f64)` - The correlation coefficient between -1.0 and 1.0
+/// * `Err(String)` - Error if vectors have different lengths or fewer than 2 elements
 pub fn pearson_correlation(x: &[u64], y: &[u64]) -> Result<f64, String> {
     if x.len() != y.len() || x.len() < 2 {
         return Err("Vectors must have the same length and contain at least two elements.".to_string());
@@ -60,6 +89,16 @@ pub fn pearson_correlation(x: &[u64], y: &[u64]) -> Result<f64, String> {
     Ok(num / (den_x * den_y))
 }
 
+/// Calculates the degree correlation matrix for a hypergraph.
+/// 
+/// Computes correlations between degree sequences for different edge sizes.
+/// 
+/// # Arguments
+/// * `hypergraph` - Reference to the hypergraph
+/// 
+/// # Returns
+/// * `Ok(Vec<Vec<f64>>)` - Matrix of correlation coefficients
+/// * `Err(String)` - Error if degree sequences cannot be computed
 pub fn degree_correlation_rust(hypergraph: &HypergraphRust) -> Result<Vec<Vec<f64>>, String> {
     let max_size = hypergraph.max_size();
     let mut seqs = Vec::new();
@@ -97,7 +136,16 @@ pub fn degree_correlation_rust(hypergraph: &HypergraphRust) -> Result<Vec<Vec<f6
     Ok(matrix_degree_corr)
 }
 
-
+/// Calculates the degree distribution of a hypergraph.
+/// 
+/// # Arguments
+/// * `hypergraph` - Reference to the hypergraph
+/// * `order` - Optional order constraint for incident edges
+/// * `size` - Optional size constraint for incident edges
+/// 
+/// # Returns
+/// * `Ok(Some(HashMap<u64, i32>))` - Map of degrees to their frequencies
+/// * `Err(String)` - Error if both order and size are specified
 pub fn degree_distribution_rust(
     hypergraph: &HypergraphRust,
     order: Option<usize>,
